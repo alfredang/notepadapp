@@ -83,7 +83,7 @@ final class NotebookViewModel {
 
     func bump() { refreshToken &+= 1 }
 
-    private func perform(_ action: () throws(StorageError) -> Page) {
+    private func perform(_ action: () throws -> Page) {
         do {
             _ = try action()
             bump()
