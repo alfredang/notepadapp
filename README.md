@@ -4,7 +4,7 @@ A clean, lightweight, native iPad note-taking app optimized for Apple Pencil. It
 feels like a paper notebook while providing digital note-taking, drawing,
 flowchart creation, and notebook organization — fully offline and local-first.
 
-![Build](https://github.com/alfredang/notetaking/actions/workflows/build.yml/badge.svg)
+![Build](https://github.com/alfredang/notetakingapp/actions/workflows/build.yml/badge.svg)
 
 ## Features
 
