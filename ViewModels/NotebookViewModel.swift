@@ -81,6 +81,23 @@ final class NotebookViewModel {
         }
     }
 
+    /// Imports a PDF, appending one annotatable page per PDF page.
+    func importPDF(from url: URL) {
+        let backgrounds = PDFImportService.renderBackgrounds(from: url)
+        guard !backgrounds.isEmpty else {
+            errorMessage = "Couldn't read that PDF."
+            return
+        }
+        do {
+            let firstNewIndex = pages.count
+            try repository.appendPages(withBackgrounds: backgrounds, to: notebook)
+            bump()
+            selectedPageIndex = firstNewIndex
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func bump() { refreshToken &+= 1 }
 
     private func perform(_ action: () throws -> Page) {

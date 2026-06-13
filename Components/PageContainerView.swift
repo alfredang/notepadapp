@@ -8,6 +8,7 @@ final class PageContainerView: UIView {
     let canvas: PKCanvasView
     let overlay: ShapeOverlayView
     private let contentView = UIView()
+    private let backgroundImageView = UIImageView()
 
     init(page: Page) {
         self.page = page
@@ -28,6 +29,13 @@ final class PageContainerView: UIView {
         contentView.frame = bounds
         contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(contentView)
+
+        // Imported page background (e.g. a PDF page) below the ink.
+        backgroundImageView.contentMode = .scaleAspectFit
+        backgroundImageView.frame = contentView.bounds
+        backgroundImageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        backgroundImageView.image = page.backgroundData.isEmpty ? nil : UIImage(data: page.backgroundData)
+        contentView.addSubview(backgroundImageView)
 
         // PencilKit canvas.
         canvas.backgroundColor = .clear
@@ -60,5 +68,6 @@ final class PageContainerView: UIView {
             canvas.drawing = PKDrawing()
         }
         overlay.items = page.items
+        backgroundImageView.image = page.backgroundData.isEmpty ? nil : UIImage(data: page.backgroundData)
     }
 }

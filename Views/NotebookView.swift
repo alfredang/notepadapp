@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// An open notebook: thumbnail sidebar + page editor, with page/export actions.
 struct NotebookView: View {
@@ -13,6 +14,7 @@ struct NotebookView: View {
     @State private var showSidebar = true
     @State private var showClearConfirm = false
     @State private var showAudioNotes = false
+    @State private var showPDFImporter = false
     @State private var exportItem: ExportRequest?
 
     init(notebook: Notebook) {
@@ -65,6 +67,12 @@ struct NotebookView: View {
         .sheet(isPresented: $showAudioNotes) {
             AudioNotesView(notebook: notebook)
         }
+        .fileImporter(isPresented: $showPDFImporter, allowedContentTypes: [.pdf]) { result in
+            if case .success(let url) = result {
+                notebookVM.importPDF(from: url)
+                controller.scrollToPage(notebookVM.selectedPageIndex)
+            }
+        }
     }
 
     @ToolbarContentBuilder
@@ -81,6 +89,13 @@ struct NotebookView: View {
                 Image(systemName: "hand.draw")
             }
             .toggleStyle(.button)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showPDFImporter = true
+            } label: {
+                Image(systemName: "doc.badge.plus")
+            }
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button {

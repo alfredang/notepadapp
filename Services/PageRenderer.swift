@@ -1,5 +1,6 @@
 import UIKit
 import PencilKit
+import AVFoundation
 
 /// Renders a page (PencilKit drawing + vector overlay) to a raster image.
 /// Used for thumbnails and PNG/JPG/PDF export.
@@ -13,6 +14,13 @@ enum PageRenderer {
         return renderer.image { ctx in
             background.setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
+
+            // Imported background (e.g. a PDF page) sits beneath everything,
+            // aspect-fit to match the on-screen image view.
+            if !page.backgroundData.isEmpty, let bg = UIImage(data: page.backgroundData) {
+                let rect = AVMakeRect(aspectRatio: bg.size, insideRect: CGRect(origin: .zero, size: size))
+                bg.draw(in: rect)
+            }
 
             // Vector overlay below ink? Draw overlay first, then ink on top to
             // match on-screen layering (ink can be erased independently).

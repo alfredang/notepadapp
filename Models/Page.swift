@@ -22,6 +22,10 @@ final class Page {
     /// sync after edits so the dashboard can search inside notes.
     var recognizedText: String = ""
 
+    /// Optional page background raster (PNG) — e.g. an imported PDF page that the
+    /// user annotates on top of. Empty for blank pages.
+    @Attribute(.externalStorage) var backgroundData: Data = Data()
+
     /// Owning notebook (inverse of `Notebook.pages`).
     var notebook: Notebook?
 
@@ -33,6 +37,7 @@ final class Page {
         drawingData: Data = Data(),
         shapesData: Data = Data(),
         recognizedText: String = "",
+        backgroundData: Data = Data(),
         notebook: Notebook? = nil
     ) {
         self.id = id
@@ -42,6 +47,7 @@ final class Page {
         self.drawingData = drawingData
         self.shapesData = shapesData
         self.recognizedText = recognizedText
+        self.backgroundData = backgroundData
         self.notebook = notebook
     }
 
