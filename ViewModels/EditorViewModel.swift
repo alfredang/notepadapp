@@ -77,13 +77,16 @@ final class EditorViewModel {
                 text: defaultLabel(for: kind)
             )
         }
+        // Flowchart nodes default to a solid white fill (so labels are readable
+        // and they look like proper boxes, not just outlines).
+        let fill = kind.isNode ? RGBAColor(red: 1, green: 1, blue: 1) : shapeFillColor
         return CanvasItem(
             kind: kind,
             frame: frame,
             start: start,
             end: end,
             strokeColor: shapeStrokeColor,
-            fillColor: shapeFillColor,
+            fillColor: fill,
             lineWidth: shapeLineWidth,
             opacity: shapeOpacity,
             text: kind.hasLabel ? defaultLabel(for: kind) : nil

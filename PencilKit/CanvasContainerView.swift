@@ -232,37 +232,60 @@ struct CanvasContainerView: UIViewRepresentable {
             return best?.view ?? pageViews.first
         }
 
+        /// Incremental rebuild: reuse existing page views (preserving their
+        /// PKCanvasView state, undo, and scroll position) and only create views
+        /// for new pages. Recreating every PKCanvasView on each change is what
+        /// made adding/clearing pages lag.
         func rebuild(pages: [Page]) {
             guard let stack else { return }
-            pageViews.forEach { $0.removeFromSuperview() }
-            pageViews.removeAll()
-            pageForCanvas.removeAll()
+            var existing: [UUID: PageContainerView] = [:]
+            for pv in pageViews { existing[pv.page.id] = pv }
 
+            var result: [PageContainerView] = []
             for page in pages {
-                let pv = PageContainerView(page: page)
-                pv.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([
-                    pv.widthAnchor.constraint(equalToConstant: page.canvasSize.width),
-                    pv.heightAnchor.constraint(equalToConstant: page.canvasSize.height)
-                ])
-                pv.canvas.delegate = self
-                pageForCanvas[ObjectIdentifier(pv.canvas)] = page
-                pv.overlay.makeItem = { [weak self] kind, frame, s, e in
-                    self?.editor.makeItem(kind: kind, frame: frame, start: s, end: e)
-                        ?? CanvasItem(kind: kind, frame: frame, start: s, end: e)
+                if let pv = existing.removeValue(forKey: page.id) {
+                    result.append(pv)
+                } else {
+                    result.append(makePageView(page))
                 }
-                pv.overlay.onChange = { [weak self, weak page] items in
-                    guard let self, let page else { return }
-                    page.items = items
-                    self.autoSave.scheduleSave(touching: page)
-                }
-                pv.overlay.requestSelectionTool = { [weak self] in
-                    self?.editor.tool = .selection
-                    self?.applyTool()
-                }
-                stack.addArrangedSubview(pv)
-                pageViews.append(pv)
             }
+            // Remove views for pages that no longer exist.
+            for pv in existing.values {
+                pageForCanvas[ObjectIdentifier(pv.canvas)] = nil
+                pv.removeFromSuperview()
+            }
+            // Arrange in order, reusing/moving existing views (no full teardown).
+            for (i, pv) in result.enumerated() {
+                if stack.arrangedSubviews.indices.contains(i), stack.arrangedSubviews[i] === pv { continue }
+                stack.insertArrangedSubview(pv, at: i)
+            }
+            pageViews = result
+        }
+
+        /// Builds and wires a fresh page view (used for new pages only).
+        private func makePageView(_ page: Page) -> PageContainerView {
+            let pv = PageContainerView(page: page)
+            pv.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                pv.widthAnchor.constraint(equalToConstant: page.canvasSize.width),
+                pv.heightAnchor.constraint(equalToConstant: page.canvasSize.height)
+            ])
+            pv.canvas.delegate = self
+            pageForCanvas[ObjectIdentifier(pv.canvas)] = page
+            pv.overlay.makeItem = { [weak self] kind, frame, s, e in
+                self?.editor.makeItem(kind: kind, frame: frame, start: s, end: e)
+                    ?? CanvasItem(kind: kind, frame: frame, start: s, end: e)
+            }
+            pv.overlay.onChange = { [weak self, weak page] items in
+                guard let self, let page else { return }
+                page.items = items
+                self.autoSave.scheduleSave(touching: page)
+            }
+            pv.overlay.requestSelectionTool = { [weak self] in
+                self?.editor.tool = .selection
+                self?.applyTool()
+            }
+            return pv
         }
 
         /// Applies the current tool to every page's canvas + overlay.
@@ -321,12 +344,12 @@ struct CanvasContainerView: UIViewRepresentable {
         /// (continuous, GoodNotes-style paging).
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             let overscroll = bottomOverscroll(scrollView)
-            if overscroll > 90 { appendPageOnce() }
-            else if overscroll < 20 { requestedNewPage = false }
+            if overscroll > 50 { appendPageOnce() }
+            else if overscroll < 12 { requestedNewPage = false }
         }
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            if bottomOverscroll(scrollView) > 40 { appendPageOnce() }
+            if bottomOverscroll(scrollView) > 20 { appendPageOnce() }
         }
 
         private func bottomOverscroll(_ scrollView: UIScrollView) -> CGFloat {

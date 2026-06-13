@@ -328,12 +328,21 @@ final class ShapeOverlayView: UIView {
         guard let item = items.first(where: { $0.id == id }) else { return }
         activeTextView?.resignFirstResponder()
 
+        let hasFill = item.fillColor.alpha > 0
+        let bg: UIColor = hasFill ? item.fillColor.uiColor : .white
+        let lum = hasFill
+            ? 0.299 * item.fillColor.red + 0.587 * item.fillColor.green + 0.114 * item.fillColor.blue
+            : 1.0
+        let textColor: UIColor = lum > 0.6 ? UIColor(white: 0.12, alpha: 1) : .white
+
         let tv = UITextView(frame: item.frame.insetBy(dx: 4, dy: 4))
         tv.delegate = self
         tv.font = .systemFont(ofSize: 17, weight: .medium)
-        tv.textColor = item.strokeColor.uiColor
-        tv.tintColor = item.strokeColor.uiColor
-        tv.backgroundColor = item.fillColor.alpha > 0 ? item.fillColor.uiColor : .secondarySystemBackground
+        tv.textColor = textColor
+        tv.tintColor = textColor
+        tv.backgroundColor = bg
+        // Pin to light so system colors never render dark on the white page.
+        tv.overrideUserInterfaceStyle = .light
         tv.layer.cornerRadius = 6
         tv.textContainerInset = UIEdgeInsets(top: 8, left: 6, bottom: 8, right: 6)
         tv.autocapitalizationType = .sentences
