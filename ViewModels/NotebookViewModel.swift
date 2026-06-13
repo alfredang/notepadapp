@@ -72,6 +72,16 @@ final class NotebookViewModel {
         }
     }
 
+    /// Clears the strokes and shapes on every page in the notebook.
+    func clearAllPages() {
+        do {
+            for page in pages { try repository.clear(page) }
+            bump()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Switches a page's paper template (white paper / blackboard).
     func setPaperStyle(_ style: PaperStyle, on page: Page) {
         page.paperStyle = style

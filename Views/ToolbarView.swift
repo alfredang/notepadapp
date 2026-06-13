@@ -1,33 +1,29 @@
 import SwiftUI
 
-/// Floating tool palette for the editor.
+/// GoodNotes-style horizontal tool bar that sits across the top of the editor.
 struct ToolbarView: View {
     @Bindable var editor: EditorViewModel
     let controller: CanvasController
 
-    @State private var showingCustomColor = false
-
     var body: some View {
-        VStack(spacing: 14) {
-            toolButtons
-            Divider().frame(width: 36)
+        HStack(spacing: 12) {
+            toolGroup
+            Divider().frame(height: 28)
             contextControls
-            Divider().frame(width: 36)
+            Spacer(minLength: 8)
             historyControls
         }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 10)
-        .background(
-            RoundedRectangle(cornerRadius: Theme.toolbarCornerRadius)
-                .fill(.regularMaterial)
-        )
-        .softShadow()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .background(.regularMaterial)
+        .overlay(alignment: .bottom) { Divider() }
     }
 
-    // MARK: - Tool selection
+    // MARK: - Tools
 
-    private var toolButtons: some View {
-        VStack(spacing: 10) {
+    private var toolGroup: some View {
+        HStack(spacing: 6) {
             toolButton("pencil.tip", tool: .pen, isActive: editor.tool == .pen)
             toolButton("highlighter", tool: .highlighter, isActive: editor.tool == .highlighter)
             toolButton("eraser", tool: .eraserPixel, isActive: editor.tool == .eraserPixel)
@@ -44,11 +40,11 @@ struct ToolbarView: View {
             editor.tool = tool
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 20))
-                .frame(width: 40, height: 40)
+                .font(.system(size: 19))
+                .frame(width: 38, height: 38)
                 .background(isActive ? Color.accentColor.opacity(0.2) : .clear)
                 .foregroundStyle(isActive ? Color.accentColor : Color.primary)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: 9))
         }
         .buttonStyle(.plain)
     }
@@ -85,11 +81,11 @@ struct ToolbarView: View {
 
     private func menuLabel(_ systemImage: String, active: Bool) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 20))
-            .frame(width: 40, height: 40)
+            .font(.system(size: 19))
+            .frame(width: 38, height: 38)
             .background(active ? Color.accentColor.opacity(0.2) : .clear)
             .foregroundStyle(active ? Color.accentColor : Color.primary)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 
     private var isShapeActive: Bool {
@@ -99,24 +95,23 @@ struct ToolbarView: View {
         if case .flowchart = editor.tool { return true }; return false
     }
 
-    // MARK: - Context controls (size + color)
+    // MARK: - Context controls (color + size for the active tool)
 
     @ViewBuilder
     private var contextControls: some View {
         switch editor.tool {
         case .pen:
-            colorPalette(selection: $editor.penColor)
-            sizePicker(sizes: ToolDefaults.penSizes, selection: $editor.penWidth)
+            colorSwatches(selection: $editor.penColor)
+            widthMenu(sizes: ToolDefaults.penSizes, selection: $editor.penWidth)
         case .highlighter:
-            colorPalette(selection: $editor.highlighterColor)
-            sizePicker(sizes: ToolDefaults.highlighterSizes, selection: $editor.highlighterWidth)
+            colorSwatches(selection: $editor.highlighterColor)
+            widthMenu(sizes: ToolDefaults.highlighterSizes, selection: $editor.highlighterWidth)
         case .eraserPixel:
-            sizeSlider(value: $editor.eraserWidth, range: 5...60, label: "Eraser")
+            widthMenu(sizes: [10, 20, 30, 45, 60], selection: $editor.eraserWidth)
         case .shape, .flowchart:
-            colorPalette(selection: $editor.shapeStrokeColor)
-            sizePicker(sizes: ToolDefaults.shapeWidths, selection: $editor.shapeLineWidth)
+            colorSwatches(selection: $editor.shapeStrokeColor)
+            widthMenu(sizes: ToolDefaults.shapeWidths, selection: $editor.shapeLineWidth)
             fillToggle
-            opacitySlider
             selectionActions
         case .selection:
             selectionActions
@@ -125,19 +120,18 @@ struct ToolbarView: View {
         }
     }
 
-    private func colorPalette(selection: Binding<RGBAColor>) -> some View {
-        VStack(spacing: 6) {
+    private func colorSwatches(selection: Binding<RGBAColor>) -> some View {
+        HStack(spacing: 8) {
             ForEach(Array(ToolDefaults.palette.enumerated()), id: \.offset) { _, color in
                 Button {
                     selection.wrappedValue = color
                 } label: {
                     Circle()
                         .fill(color.color)
-                        .frame(width: 22, height: 22)
-                        .overlay(
-                            Circle().stroke(Color.accentColor, lineWidth: selection.wrappedValue == color ? 2.5 : 0)
-                        )
-                        .overlay(Circle().stroke(Color.black.opacity(0.1), lineWidth: 1))
+                        .frame(width: 24, height: 24)
+                        .overlay(Circle().stroke(Color.accentColor,
+                                                 lineWidth: selection.wrappedValue == color ? 3 : 0))
+                        .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
@@ -146,35 +140,35 @@ struct ToolbarView: View {
                 set: { selection.wrappedValue = RGBAColor($0) }
             ))
             .labelsHidden()
-            .frame(width: 26, height: 26)
+            .frame(width: 28, height: 28)
         }
     }
 
-    private func sizePicker(sizes: [CGFloat], selection: Binding<CGFloat>) -> some View {
-        VStack(spacing: 6) {
+    private func widthMenu(sizes: [CGFloat], selection: Binding<CGFloat>) -> some View {
+        Menu {
             ForEach(sizes, id: \.self) { size in
                 Button {
                     selection.wrappedValue = size
                 } label: {
-                    Circle()
-                        .fill(Color.primary)
-                        .frame(width: min(size + 4, 22), height: min(size + 4, 22))
-                        .frame(width: 28, height: 28)
-                        .background(selection.wrappedValue == size ? Color.accentColor.opacity(0.2) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    if selection.wrappedValue == size {
+                        Label("\(Int(size)) px", systemImage: "checkmark")
+                    } else {
+                        Text("\(Int(size)) px")
+                    }
                 }
-                .buttonStyle(.plain)
             }
-        }
-    }
-
-    private func sizeSlider(value: Binding<CGFloat>, range: ClosedRange<CGFloat>, label: String) -> some View {
-        VStack {
-            Text(label).font(.caption2)
-            Slider(value: value, in: range)
-                .frame(width: 44)
-                .rotationEffect(.degrees(-90))
-                .frame(height: 80)
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(Color.primary)
+                    .frame(width: min(selection.wrappedValue + 2, 18),
+                           height: min(selection.wrappedValue + 2, 18))
+                    .frame(width: 22, height: 22)
+                Text("\(Int(selection.wrappedValue))")
+                    .font(.caption.monospacedDigit())
+            }
+            .frame(height: 34)
+            .padding(.horizontal, 6)
+            .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
@@ -184,30 +178,20 @@ struct ToolbarView: View {
         } label: {
             Image(systemName: editor.shapeFillColor.alpha > 0 ? "square.fill" : "square")
                 .font(.system(size: 18))
-                .frame(width: 36, height: 32)
+                .frame(width: 36, height: 34)
         }
         .buttonStyle(.plain)
     }
 
-    private var opacitySlider: some View {
-        VStack {
-            Image(systemName: "circle.lefthalf.filled").font(.caption2)
-            Slider(value: $editor.shapeOpacity, in: 0.1...1)
-                .frame(width: 44)
-                .rotationEffect(.degrees(-90))
-                .frame(height: 70)
-        }
-    }
-
     private var selectionActions: some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button {
                 controller.duplicateSelection()
-            } label: { Image(systemName: "plus.square.on.square").frame(width: 36, height: 32) }
+            } label: { Image(systemName: "plus.square.on.square").frame(width: 36, height: 34) }
                 .buttonStyle(.plain)
             Button(role: .destructive) {
                 controller.deleteSelection()
-            } label: { Image(systemName: "trash").frame(width: 36, height: 32) }
+            } label: { Image(systemName: "trash").frame(width: 36, height: 34) }
                 .buttonStyle(.plain)
         }
     }
@@ -215,13 +199,13 @@ struct ToolbarView: View {
     // MARK: - History
 
     private var historyControls: some View {
-        VStack(spacing: 10) {
+        HStack(spacing: 6) {
             Button { controller.undo() } label: {
-                Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 32)
+                Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 34)
             }
             .buttonStyle(.plain)
             Button { controller.redo() } label: {
-                Image(systemName: "arrow.uturn.forward").frame(width: 36, height: 32)
+                Image(systemName: "arrow.uturn.forward").frame(width: 36, height: 34)
             }
             .buttonStyle(.plain)
         }

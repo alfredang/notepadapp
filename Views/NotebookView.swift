@@ -13,6 +13,7 @@ struct NotebookView: View {
     @State private var autoSave: AutoSaveService
     @State private var showSidebar = false
     @State private var showClearConfirm = false
+    @State private var showClearAllConfirm = false
     @State private var showAudioNotes = false
     @State private var showPDFImporter = false
     @State private var exportItem: ExportRequest?
@@ -58,6 +59,14 @@ struct NotebookView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes all strokes and shapes on the page you're viewing.")
+        }
+        .confirmationDialog("Clear all pages?", isPresented: $showClearAllConfirm, titleVisibility: .visible) {
+            Button("Clear All Pages", role: .destructive) {
+                notebookVM.clearAllPages()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all strokes and shapes on every page in this notebook.")
         }
         .sheet(item: $exportItem) { request in
             ExportSheet(request: request)
@@ -143,8 +152,13 @@ struct NotebookView: View {
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Button(role: .destructive) {
-                showClearConfirm = true
+            Menu {
+                Button(role: .destructive) {
+                    showClearConfirm = true
+                } label: { Label("Clear Page", systemImage: "trash.slash") }
+                Button(role: .destructive) {
+                    showClearAllConfirm = true
+                } label: { Label("Clear All Pages", systemImage: "trash") }
             } label: {
                 Image(systemName: "trash.slash")
             }

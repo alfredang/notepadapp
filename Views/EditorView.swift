@@ -11,28 +11,28 @@ struct EditorView: View {
     private let zoomPresets: [CGFloat] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0]
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            CanvasContainerView(
-                pages: pages,
-                editor: editor,
-                autoSave: autoSave,
-                structureToken: structureToken,
-                toolStateToken: editor.toolStateToken,
-                controller: controller
-            )
-            .ignoresSafeArea(edges: .bottom)
-
+        VStack(spacing: 0) {
             if !editor.isPaletteHidden {
                 ToolbarView(editor: editor, controller: controller)
-                    .padding(.trailing, 16)
-                    .padding(.top, 16)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            zoomControls
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            ZStack(alignment: .bottomLeading) {
+                CanvasContainerView(
+                    pages: pages,
+                    editor: editor,
+                    autoSave: autoSave,
+                    structureToken: structureToken,
+                    toolStateToken: editor.toolStateToken,
+                    controller: controller
+                )
+                .ignoresSafeArea(edges: .bottom)
+
+                zoomControls
+                    .padding(16)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: editor.isPaletteHidden)
     }
 
     private var zoomControls: some View {
