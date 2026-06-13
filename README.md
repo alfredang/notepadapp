@@ -1,8 +1,9 @@
 # NotePad — Native iPad Note-Taking App
 
-A clean, lightweight, native iPad note-taking app optimized for Apple Pencil. It
-feels like a paper notebook while providing digital note-taking, drawing,
-flowchart creation, and notebook organization — with iCloud sync across devices.
+A clean, native iPad note-taking app optimized for Apple Pencil, with a
+**GoodNotes-style** editor: a compact horizontal tool bar, white-paper or
+blackboard templates, handwriting, shapes & flowcharts, PDF annotation, and
+notebook organization with tags — all synced across devices via iCloud.
 
 ![Build](https://github.com/alfredang/notepadapp/actions/workflows/build.yml/badge.svg)
 
@@ -14,31 +15,64 @@ flowchart creation, and notebook organization — with iCloud sync across device
 
 ## Features
 
-- **Dashboard** — grid of notebooks with cover thumbnail, page count, created /
-  updated dates, instant search, and sort (last modified / created / alphabetical).
-- **Nested notebooks** — sub-notebooks via a self-referential SwiftData relationship.
-- **A4 pages** — white paper with soft shadows, continuous vertical scrolling.
-- **Apple Pencil** — PencilKit canvas with pressure, tilt, palm rejection, low latency.
-  Pencil draws; fingers pan and zoom (toggleable finger-drawing).
-- **Tools** — pen (8 widths), highlighter (transparent), pixel & object erasers,
-  8-color palette + custom color picker.
-- **Shapes** — rectangle, circle, triangle, diamond, line, arrow, with stroke /
-  fill / width / opacity. Rendered as an independent, editable **vector overlay**.
-- **Flowcharts** — process, decision, start/end nodes and connectors that **snap to
-  nodes** and re-route automatically when a node is moved.
-- **Selection** — move, resize, duplicate, delete shapes; lasso for ink.
-- **Zoom & pan** — pinch to zoom (25%–500% presets), two-finger pan.
-- **Page management** — add (insert before / after / at end), duplicate, clear
-  (with confirmation), delete, drag-to-reorder via the thumbnail sidebar.
-- **Auto save** — every stroke and shape change is debounced and persisted; no save button.
+### Editor (GoodNotes-style)
+- **Compact horizontal tool bar** at the top: tools, color, width, template,
+  add-page, clear/delete, and undo/redo — all in one clean, icon-centric row.
+- **Apple Pencil** — PencilKit canvas with pressure, tilt and low latency.
+  **Palm rejection**: scrolling is suspended while the Pencil draws.
+- **Pencil draws, finger scrolls** (the GoodNotes model); a single finger pans
+  and two fingers always pinch-zoom. Finger-drawing is an opt-in toggle/setting.
+- **Tools** — pen (8 widths), highlighter, pixel & object erasers, plus a
+  **color dropdown** with 26 swatches and a custom color picker.
+- **Shapes** — rectangle, circle, triangle, diamond, line, arrow as an editable
+  **vector overlay** (stroke / fill / width).
+- **Flowcharts** — process, decision, start/end nodes and connectors that **snap
+  to nodes** and re-route automatically when a node moves.
+- **Inline text** — type **directly into** sticky notes and flowchart nodes with
+  a multi-line editor; pick a **background color** (text auto-contrasts), tap a
+  node to edit, tap away to commit. Node text is centered.
+- **Lasso** — loop around **multiple** handwriting strokes to move / delete /
+  copy (native PencilKit); tap a shape to select it for an on-canvas popup
+  (delete · duplicate · change color) and drag to move.
+
+### Templates & appearance
+- **White paper or blackboard** templates, applied **notebook-wide**. Switching
+  recolors existing ink (dark ink ⇄ white chalk) and new pages inherit it.
+- **Adaptive light/dark** — ink renders literally on the page (and in
+  thumbnails), while chrome and the canvas surround follow the system theme.
+- **Page footer** — "Page N · date & time" at the bottom-right (toggleable).
+
+### Pages
+- **Continuous paging** — pull firmly past the top/bottom edge and release to add
+  a page above/below; or use the **Add Above / Add Below** menu.
+- **Fit-to-width on open**, scroll to the top of the first page; re-fits on
+  rotation. **Double-tap** a page to zoom in / out.
+- **Thumbnail sidebar** — jump to a page, **multi-select to delete**, and
+  **drag-to-reorder**; thumbnails render the real content in the page's colors.
+- **Infinite canvas** — extend a page in A4-height increments.
+
+### Organization & sync
+- **Dashboard** — grid of notebooks with live cover thumbnail, page count,
+  dates, instant search (incl. handwriting), and sort.
+- **Tags** — assign multiple tags (e.g. Physics, Math, Computing) to a notebook;
+  filter the dashboard by tag. Tags show as chips under the title.
+- **Nested notebooks** — sub-notebooks via a self-referential relationship.
+- **iCloud sync** — notebooks and pages auto-sync via CloudKit (private database).
+- **Handwriting / OCR search** — Vision text recognition indexes pages so search
+  finds words inside your handwriting and shapes.
+- **Auto save** — every change is debounced and persisted; no save button.
+
+### Import / export / media
+- **PDF annotation** — import a PDF as annotatable pages and mark it up.
 - **Export** — page to PNG / JPG / PDF; whole notebook to a combined PDF.
-- **iCloud sync** — notebooks and pages auto-sync across your devices via CloudKit (private database).
-- **Handwriting / OCR search** — pages are indexed with Vision text recognition, so dashboard search finds words inside your handwriting and shapes.
-- **Sticky notes** — drop a colored note card and double-tap to edit its text (also works on flowchart nodes).
-- **Audio notes** — record, play back, and delete voice memos attached to a notebook.
-- **PDF annotation** — import a PDF as annotatable pages and mark it up with any tool.
-- **Infinite canvas** — extend a page in A4-height increments for a continuous, no-page-break vertical canvas.
-- **Notebook sharing** — export a full notebook (pages, PDF backgrounds, voice memos) to a portable `.notebook` file and import it on another device.
+- **Notebook sharing** — export a full notebook (pages, PDF backgrounds, voice
+  memos) to a portable `.notebook` file and import it elsewhere.
+- **Audio notes** — record, play back, and delete voice memos per notebook.
+
+### iPad-native polish
+- **Keyboard shortcuts** — Undo ⌘Z, Redo ⌘⇧Z, New notebook ⌘N, Settings ⌘,.
+- **Pointer hover effects** on toolbar and cards; **VoiceOver labels** on all
+  icon-only controls (per Apple's iPad Human Interface Guidelines).
 
 ## Tech Stack
 
@@ -65,9 +99,11 @@ Editor = zoom/pan UIScrollView
               └─ ShapeOverlayView  (vector shapes, flowchart connectors, sticky notes)
 ```
 
-The gesture conflict between drawing, panning and zooming is resolved by setting
-`drawingPolicy = .pencilOnly` and disabling each canvas's internal scrolling, so a
-single outer scroll view owns pan/zoom while the Pencil draws.
+The gesture conflict between drawing, panning and zooming is resolved with a
+finger-only scroll pan and `drawingPolicy = .pencilOnly`: the Apple Pencil always
+draws (and scrolling is suspended mid-stroke for palm rejection), a single finger
+scrolls, and two fingers pinch-zoom — while each canvas's internal scrolling is
+disabled so the single outer scroll view owns pan/zoom.
 
 ## Project Layout
 
@@ -114,5 +150,12 @@ XcodeGen, generates the project, and compiles for the iOS Simulator on a macOS r
 **Phase 2 — shipped:** iCloud sync · handwriting / OCR search · sticky notes ·
 audio notes · infinite (extendable) canvas · PDF annotation · notebook sharing.
 
+**Phase 3 — shipped:** GoodNotes-style top toolbar · white / blackboard
+templates (notebook-wide, with ink recolor) · inline multi-line text + element
+background colors · multi-stroke lasso · notebook tags & filtering · pull-to-add
+pages · double-tap zoom · multi-select / drag-reorder pages · iPad HIG polish
+(keyboard shortcuts, hover, VoiceOver).
+
 **Next:** real-time collaboration (live CKShare co-editing — current sharing is
-file-based) · handwriting-to-text conversion · sticky-note colors · web companion.
+file-based) · handwriting-to-text conversion · lined / grid paper templates ·
+web companion.

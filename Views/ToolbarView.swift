@@ -202,11 +202,12 @@ struct ToolbarView: View {
     private var pageControls: some View {
         HStack(spacing: 4) {
             Menu {
-                Button { controller.setPaperStyle(.white) } label: {
-                    Label("White", systemImage: "rectangle")
-                }
-                Button { controller.setPaperStyle(.blackboard) } label: {
-                    Label("Blackboard", systemImage: "rectangle.fill")
+                Picker("Template", selection: Binding(
+                    get: { controller.currentPaperStyle() },
+                    set: { controller.setPaperStyle($0) }
+                )) {
+                    Label("White", systemImage: "doc").tag(PaperStyle.white)
+                    Label("Blackboard", systemImage: "rectangle.fill").tag(PaperStyle.blackboard)
                 }
             } label: {
                 barIcon("square.grid.2x2")
