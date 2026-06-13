@@ -188,36 +188,38 @@ struct ToolbarView: View {
     }
 }
 
-/// Swatch grid + system color picker shown in the color popover.
+/// Swatch grid + system color picker shown in the color dropdown/popover.
 private struct ColorPalettePopover: View {
     @Binding var selection: RGBAColor
 
-    private let columns = Array(repeating: GridItem(.fixed(34), spacing: 10), count: 4)
+    private let columns = Array(repeating: GridItem(.fixed(30), spacing: 10), count: 6)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(Array(ToolDefaults.palette.enumerated()), id: \.offset) { _, color in
+                ForEach(Array(ToolDefaults.extendedPalette.enumerated()), id: \.offset) { _, color in
                     Button {
                         selection = color
                     } label: {
                         Circle()
                             .fill(color.color)
-                            .frame(width: 30, height: 30)
+                            .frame(width: 28, height: 28)
                             .overlay(Circle().stroke(Color.accentColor,
                                                      lineWidth: selection == color ? 3 : 0))
-                            .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                            .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            ColorPicker("Custom", selection: Binding(
+            Divider()
+            ColorPicker(selection: Binding(
                 get: { selection.color },
                 set: { selection = RGBAColor($0) }
-            ))
-            .font(.subheadline)
+            )) {
+                Text("Custom color…").font(.subheadline)
+            }
         }
         .padding(16)
-        .frame(width: 220)
+        .frame(width: 268)
     }
 }

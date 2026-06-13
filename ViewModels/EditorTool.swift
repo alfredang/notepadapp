@@ -47,4 +47,39 @@ enum ToolDefaults {
         RGBAColor(red: 1.0, green: 0.84, blue: 0.0),    // Yellow
         RGBAColor(red: 0.50, green: 0.50, blue: 0.50)   // Gray
     ]
+
+    /// A larger swatch set for the color picker dropdown.
+    static let extendedPalette: [RGBAColor] = [
+        // Neutrals
+        RGBAColor(red: 0.00, green: 0.00, blue: 0.00), // Black
+        RGBAColor(red: 0.27, green: 0.27, blue: 0.27), // Dark Gray
+        RGBAColor(red: 0.50, green: 0.50, blue: 0.50), // Gray
+        RGBAColor(red: 0.72, green: 0.72, blue: 0.72), // Light Gray
+        RGBAColor(red: 0.90, green: 0.90, blue: 0.90), // Silver
+        RGBAColor(red: 1.00, green: 1.00, blue: 1.00), // White
+        // Reds / pinks
+        RGBAColor(red: 0.80, green: 0.00, blue: 0.00), // Dark Red
+        RGBAColor(red: 0.96, green: 0.26, blue: 0.21), // Red
+        RGBAColor(red: 1.00, green: 0.45, blue: 0.45), // Salmon
+        RGBAColor(red: 1.00, green: 0.34, blue: 0.66), // Pink
+        RGBAColor(red: 0.85, green: 0.0,  blue: 0.52), // Magenta
+        RGBAColor(red: 0.61, green: 0.15, blue: 0.69), // Purple
+        // Oranges / yellows
+        RGBAColor(red: 0.55, green: 0.27, blue: 0.07), // Brown
+        RGBAColor(red: 1.00, green: 0.45, blue: 0.0),  // Dark Orange
+        RGBAColor(red: 1.00, green: 0.60, blue: 0.0),  // Orange
+        RGBAColor(red: 1.00, green: 0.76, blue: 0.03), // Amber
+        RGBAColor(red: 1.00, green: 0.84, blue: 0.0),  // Yellow
+        RGBAColor(red: 0.85, green: 0.85, blue: 0.20), // Lime
+        // Greens / teals
+        RGBAColor(red: 0.20, green: 0.55, blue: 0.20), // Dark Green
+        RGBAColor(red: 0.30, green: 0.69, blue: 0.31), // Green
+        RGBAColor(red: 0.18, green: 0.80, blue: 0.44), // Emerald
+        RGBAColor(red: 0.0,  green: 0.74, blue: 0.74), // Teal
+        // Blues
+        RGBAColor(red: 0.0,  green: 0.48, blue: 1.00), // Blue
+        RGBAColor(red: 0.10, green: 0.30, blue: 0.80), // Indigo
+        RGBAColor(red: 0.40, green: 0.62, blue: 0.95), // Sky
+        RGBAColor(red: 0.0,  green: 0.20, blue: 0.50)  // Navy
+    ]
 }
