@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// Drives a single open notebook: page list and page management.
 @MainActor
@@ -82,13 +83,28 @@ final class NotebookViewModel {
         }
     }
 
-    /// Switches a page's paper template (white paper / blackboard).
-    func setPaperStyle(_ style: PaperStyle, on page: Page) {
-        page.paperStyle = style
-        page.touch()
+    /// Switches the whole notebook's paper template and recolors existing ink &
+    /// shapes so they stay visible on the new surface (dark ink ⇄ white chalk).
+    func setPaperStyle(_ style: PaperStyle) {
+        let map: (UIColor) -> UIColor = { color in
+            style == .blackboard ? InkRecolor.forBlackboard(color) : InkRecolor.forWhitePaper(color)
+        }
+        for page in pages {
+            page.paperStyle = style
+            page.drawingData = InkRecolor.recolorDrawing(page.drawingData, using: map)
+            var items = page.items
+            for i in items.indices {
+                items[i].strokeColor = RGBAColor(map(items[i].strokeColor.uiColor))
+            }
+            page.items = items
+            page.touch()
+        }
         try? repository.save()
         bump()
     }
+
+    /// The notebook's current template (taken from its first page).
+    var paperStyle: PaperStyle { pages.first?.paperStyle ?? .white }
 
     func movePages(from source: IndexSet, to destination: Int) {
         do {
@@ -140,7 +156,12 @@ final class NotebookViewModel {
 
     private func perform(_ action: () throws -> Page) {
         do {
-            _ = try action()
+            let page = try action()
+            // New pages inherit the notebook's current template.
+            if page.paperStyle != paperStyle {
+                page.paperStyle = paperStyle
+                try? repository.save()
+            }
             bump()
         } catch {
             errorMessage = error.localizedDescription

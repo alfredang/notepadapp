@@ -8,6 +8,9 @@ final class CanvasController {
     var duplicateSelection: () -> Void = {}
     var hasSelection: () -> Bool = { false }
     var reload: (Page) -> Void = { _ in }
+    /// Reloads every page view from the model (e.g. after a notebook-wide
+    /// template/color change).
+    var reloadAllPages: () -> Void = {}
     var undo: () -> Void = {}
     var redo: () -> Void = {}
     var setZoom: (CGFloat) -> Void = { _ in }

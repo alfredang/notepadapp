@@ -116,6 +116,9 @@ struct CanvasContainerView: UIViewRepresentable {
             controller.reload = { [weak self] page in
                 self?.pageViews.first { $0.page.id == page.id }?.reloadFromModel()
             }
+            controller.reloadAllPages = { [weak self] in
+                self?.pageViews.forEach { $0.reloadFromModel() }
+            }
             // Undo/redo act on the canvas the user is currently viewing. Each
             // canvas owns its own UndoManager (see StrokeCanvasView), so this
             // reliably reverses the strokes drawn on that page.
@@ -383,6 +386,17 @@ struct CanvasContainerView: UIViewRepresentable {
         }
 
         // MARK: PKCanvasViewDelegate
+
+        /// While the Pencil is actively drawing, disable scrolling so a resting
+        /// palm can't pan the page (palm rejection for the scroll view; PencilKit
+        /// already rejects the palm for drawing).
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            scrollView?.isScrollEnabled = false
+        }
+
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            applyTool() // restores scrolling appropriately for the current tool
+        }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard let page = pageForCanvas[ObjectIdentifier(canvasView)] else { return }

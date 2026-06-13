@@ -81,11 +81,11 @@ struct NotebookView: View {
     /// switching the default ink so strokes stay visible on the new surface.
     private var paperStyleBinding: Binding<PaperStyle> {
         Binding(
-            get: { (controller.currentVisiblePage() ?? notebookVM.selectedPage)?.paperStyle ?? .white },
+            get: { notebookVM.paperStyle },
             set: { newStyle in
-                guard let page = controller.currentVisiblePage() ?? notebookVM.selectedPage else { return }
-                notebookVM.setPaperStyle(newStyle, on: page)
-                controller.reload(page)
+                // Template applies to the whole notebook and recolors content.
+                notebookVM.setPaperStyle(newStyle)
+                controller.reloadAllPages()
                 editorVM.penColor = newStyle.defaultInkColor
             }
         )
