@@ -18,6 +18,10 @@ final class Page {
     /// JSON-encoded `[CanvasItem]` for the shape/flowchart overlay.
     @Attribute(.externalStorage) var shapesData: Data = Data()
 
+    /// Text recognized from the handwriting + shape labels (Vision OCR), kept in
+    /// sync after edits so the dashboard can search inside notes.
+    var recognizedText: String = ""
+
     /// Owning notebook (inverse of `Notebook.pages`).
     var notebook: Notebook?
 
@@ -28,6 +32,7 @@ final class Page {
         updatedAt: Date = .now,
         drawingData: Data = Data(),
         shapesData: Data = Data(),
+        recognizedText: String = "",
         notebook: Notebook? = nil
     ) {
         self.id = id
@@ -36,6 +41,7 @@ final class Page {
         self.updatedAt = updatedAt
         self.drawingData = drawingData
         self.shapesData = shapesData
+        self.recognizedText = recognizedText
         self.notebook = notebook
     }
 

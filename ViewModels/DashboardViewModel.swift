@@ -22,11 +22,16 @@ final class DashboardViewModel {
         reload()
     }
 
-    /// Notebooks after applying the current search filter.
+    /// Notebooks after applying the current search filter. Matches the title or
+    /// any recognized handwriting/text inside the notebook's pages.
     var filteredNotebooks: [Notebook] {
-        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return notebooks }
-        return notebooks.filter {
-            $0.title.localizedCaseInsensitiveContains(searchText)
+        let query = searchText.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return notebooks }
+        return notebooks.filter { notebook in
+            notebook.title.localizedCaseInsensitiveContains(query)
+                || notebook.orderedPages.contains {
+                    $0.recognizedText.localizedCaseInsensitiveContains(query)
+                }
         }
     }
 

@@ -68,7 +68,7 @@ struct DashboardView: View {
                 .padding(24)
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "Search notebooks")
+        .searchable(text: $viewModel.searchText, prompt: "Search notebooks & handwriting")
         .toolbar { toolbarContent }
         .alert("New Notebook", isPresented: $showingNewNotebook) {
             TextField("Notebook name", text: $newNotebookName)
