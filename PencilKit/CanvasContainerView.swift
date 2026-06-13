@@ -21,7 +21,9 @@ struct CanvasContainerView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIScrollView {
         let scrollView = UIScrollView()
-        scrollView.backgroundColor = UIColor(white: 0.93, alpha: 1)
+        // Canvas surround adapts to light/dark mode (light gray vs near-black),
+        // while the page paper and ink stay literal (see PageContainerView).
+        scrollView.backgroundColor = .systemGroupedBackground
         scrollView.minimumZoomScale = 0.15
         scrollView.maximumZoomScale = 5.0
         scrollView.delegate = context.coordinator
