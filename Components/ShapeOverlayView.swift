@@ -56,6 +56,7 @@ final class ShapeOverlayView: UIView {
     // Inline text editor (type directly into a sticky note / labelled shape).
     private weak var activeTextView: UITextView?
     private var editingItemID: UUID?
+    private var editingIsNode = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -349,13 +350,27 @@ final class ShapeOverlayView: UIView {
         tv.isScrollEnabled = true
         tv.text = (item.text == defaultLabel(for: item.kind)) ? "" : (item.text ?? "")
 
+        // Flowchart nodes center their text (matching the rendered node);
+        // sticky notes keep top-left.
+        editingIsNode = item.kind.isNode
+        if editingIsNode { tv.textAlignment = .center }
+
         tv.inputAccessoryView = makeEditingAccessory()
 
         addSubview(tv)
         activeTextView = tv
         editingItemID = id
         tv.becomeFirstResponder()
+        tv.layoutIfNeeded()
+        centerTextVerticallyIfNeeded()
         setNeedsDisplay()
+    }
+
+    /// Vertically centers a flowchart node's text within the editor.
+    private func centerTextVerticallyIfNeeded() {
+        guard editingIsNode, let tv = activeTextView else { return }
+        let top = max(8, (tv.bounds.height - tv.contentSize.height) / 2)
+        tv.textContainerInset = UIEdgeInsets(top: top, left: 6, bottom: 8, right: 6)
     }
 
     @objc private func finishTextEditing() {
@@ -582,6 +597,10 @@ final class ShapeOverlayView: UIView {
 // MARK: - Inline text editing
 
 extension ShapeOverlayView: UITextViewDelegate {
+    func textViewDidChange(_ textView: UITextView) {
+        centerTextVerticallyIfNeeded()
+    }
+
     func textViewDidEndEditing(_ textView: UITextView) {
         if let id = editingItemID, let idx = items.firstIndex(where: { $0.id == id }) {
             items[idx].text = textView.text

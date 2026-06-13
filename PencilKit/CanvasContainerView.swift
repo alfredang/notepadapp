@@ -131,16 +131,20 @@ struct CanvasContainerView: UIViewRepresentable {
                 self?.scrollView?.setZoomScale(scale, animated: true)
             }
             controller.scrollToPage = { [weak self] index in
-                guard let self, self.pageViews.indices.contains(index),
-                      let scrollView = self.scrollView else { return }
-                // If zoomed far out (e.g. a pinch-out overview), restore a
-                // readable full-width zoom before jumping to the page.
-                if let fit = self.fitWidthScale(), scrollView.zoomScale < fit * 0.9 {
-                    self.applyFit()
+                // Defer to the next runloop so a just-added page view is built
+                // and laid out — otherwise its frame is (0,0) and we'd scroll to
+                // the top (the first page) instead of the target.
+                DispatchQueue.main.async {
+                    guard let self, self.pageViews.indices.contains(index),
+                          let scrollView = self.scrollView else { return }
+                    if let fit = self.fitWidthScale(), scrollView.zoomScale < fit * 0.9 {
+                        self.applyFit()
+                    }
+                    scrollView.layoutIfNeeded()
+                    let target = self.pageViews[index]
+                    let rect = target.convert(target.bounds, to: scrollView)
+                    scrollView.scrollRectToVisible(rect.insetBy(dx: 0, dy: -28), animated: true)
                 }
-                let target = self.pageViews[index]
-                let rect = target.convert(target.bounds, to: scrollView)
-                scrollView.scrollRectToVisible(rect.insetBy(dx: 0, dy: -28), animated: true)
             }
             controller.currentVisiblePage = { [weak self] in self?.mostVisiblePageView()?.page }
             controller.clearVisiblePage = { [weak self] in self?.clearVisiblePage() }
