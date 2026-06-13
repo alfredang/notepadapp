@@ -34,12 +34,18 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tertiaryinfotech.notepadapp
         INFOPLIST_FILE: App/Info.plist
-        CODE_SIGN_ENTITLEMENTS: App/NotePadApp.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         DEVELOPMENT_ASSET_PATHS: ""
         SUPPORTS_MACCATALYST: NO
         UISupportedInterfaceOrientations: ""
+      configs:
+        # Debug uses development APNs (CloudKit Development); Release/archive uses
+        # production APNs (CloudKit Production) for App Store / TestFlight.
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: App/NotePadApp.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: App/NotePadApp.Release.entitlements
     scheme:
       testTargets: []
 
