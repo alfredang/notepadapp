@@ -18,3 +18,8 @@ build/
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Secrets / local config
+.env
+*.p8
+.appstoreconnect/
