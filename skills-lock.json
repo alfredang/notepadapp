@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ipados-design-guidelines": {
+      "source": "ehmo/platform-design-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ipados/SKILL.md",
+      "computedHash": "d3c6a09efe0c6a74a08a944d4deb78b1a71595a45a4c25f4b8eedb657d16bca8"
+    },
     "mobile-ios-design": {
       "source": "wshobson/agents",
       "sourceType": "github",

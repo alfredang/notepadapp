@@ -256,6 +256,10 @@ struct CanvasContainerView: UIViewRepresentable {
                     page.items = items
                     self.autoSave.scheduleSave(touching: page)
                 }
+                pv.overlay.requestSelectionTool = { [weak self] in
+                    self?.editor.tool = .selection
+                    self?.applyTool()
+                }
                 stack.addArrangedSubview(pv)
                 pageViews.append(pv)
             }

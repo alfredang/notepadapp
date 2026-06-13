@@ -22,7 +22,24 @@ final class ShapeOverlayView: UIView {
     /// Called whenever items change (commit), for persistence.
     var onChange: ([CanvasItem]) -> Void = { _ in }
 
+    /// Asks the host to switch back to the selection tool (e.g. after dropping a
+    /// sticky note, so the next tap doesn't create another one).
+    var requestSelectionTool: () -> Void = {}
+
+    // Ink (PencilKit) lasso bridge — the canvas owns the strokes, so these
+    // closures let the overlay's lasso select/move/recolor/delete ink.
+    /// Selects ink strokes enclosed by the polygon; returns their bounding box.
+    var selectInk: ([CGPoint]) -> CGRect? = { _ in nil }
+    var moveSelectedInk: (CGSize) -> Void = { _ in }
+    var recolorSelectedInk: (RGBAColor) -> Void = { _ in }
+    var deleteSelectedInk: () -> Void = {}
+    var clearInkSelection: () -> Void = {}
+
     private(set) var selectedID: UUID?
+    /// Bounding box of a lasso-selected ink group (nil when none).
+    private var inkSelectionRect: CGRect?
+    private var inkSelected: Bool { inkSelectionRect != nil }
+    private var lastDragPoint: CGPoint = .zero
 
     // Interaction state
     private var draft: CanvasItem?
@@ -71,8 +88,14 @@ final class ShapeOverlayView: UIView {
         let isFinger = (event?.allTouches?.first?.type ?? .pencil) != .pencil
         switch tool {
         case .selection:
-            // The overlay owns selection: tap an item, or draw a loop to select.
-            return true
+            // Only intercept taps on a shape or its resize handles; empty space
+            // falls through to the PencilKit canvas, whose lasso selects (and
+            // moves/deletes) multiple handwriting strokes at once.
+            if let sel = items.first(where: { $0.id == selectedID }),
+               handleRects(for: sel).contains(where: { $0.contains(point) }) {
+                return true
+            }
+            return items.contains { hitTest($0, point: point) }
         case .shape, .flowchart:
             if isFinger && !allowsFingerDrawing { return false }
             return super.point(inside: point, with: event)
@@ -191,9 +214,14 @@ final class ShapeOverlayView: UIView {
         case .move, .resize:
             rerouteConnectors()
             onChange(items)
-            // A tap that selected an item (no drag) pops up the edit menu.
+            // A tap (no drag) on an item: labelled items open their text editor;
+            // other shapes show the edit menu (delete / color / duplicate).
             if !didMove, let sel = items.first(where: { $0.id == selectedID }) {
-                presentEditMenu(at: CGPoint(x: sel.frame.midX, y: sel.frame.minY - 8))
+                if sel.kind.hasLabel {
+                    presentTextEditor(for: sel.id, current: sel.text ?? "")
+                } else {
+                    presentEditMenu(at: CGPoint(x: sel.frame.midX, y: sel.frame.minY - 8))
+                }
             }
         case .lasso:
             finishLasso()
@@ -252,6 +280,13 @@ final class ShapeOverlayView: UIView {
         items.append(d)
         selectedID = d.id
         onChange(items)
+
+        // After placing a sticky note, leave create-mode and open its editor so
+        // the user can type immediately with the keyboard.
+        if d.kind == .stickyNote {
+            requestSelectionTool()
+            presentTextEditor(for: d.id, current: d.text ?? "")
+        }
     }
 
     /// Default footprint for a tapped (not dragged) labelled item.

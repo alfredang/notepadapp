@@ -1,22 +1,27 @@
 import SwiftUI
 
-/// GoodNotes-style horizontal tool bar that sits across the top of the editor.
+/// GoodNotes-style horizontal tool bar across the top of the editor. Kept
+/// compact so it fits without scrolling (color/size open as popovers; actions
+/// on a selected element appear in the on-canvas edit menu).
 struct ToolbarView: View {
     @Bindable var editor: EditorViewModel
     let controller: CanvasController
 
+    @State private var showColorPopover = false
+
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                toolGroup
+        HStack(spacing: 8) {
+            toolGroup
+            if colorBinding != nil || sizeBinding != nil {
                 Divider().frame(height: 28)
-                contextControls
-                Divider().frame(height: 28)
-                historyControls
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            if let cb = colorBinding { colorButton(cb) }
+            if let sb = sizeBinding { widthMenu(sizes: sb.sizes, selection: sb.value) }
+            Spacer(minLength: 8)
+            historyControls
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
         .background(Color(.secondarySystemBackground))
         .overlay(alignment: .bottom) { Divider() }
@@ -25,7 +30,7 @@ struct ToolbarView: View {
     // MARK: - Tools
 
     private var toolGroup: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             toolButton("pencil.tip", tool: .pen, isActive: editor.tool == .pen)
             toolButton("highlighter", tool: .highlighter, isActive: editor.tool == .highlighter)
             toolButton("eraser", tool: .eraserPixel, isActive: editor.tool == .eraserPixel)
@@ -47,6 +52,7 @@ struct ToolbarView: View {
                 .background(isActive ? Color.accentColor.opacity(0.2) : .clear)
                 .foregroundStyle(isActive ? Color.accentColor : Color.primary)
                 .clipShape(RoundedRectangle(cornerRadius: 9))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -88,6 +94,7 @@ struct ToolbarView: View {
             .background(active ? Color.accentColor.opacity(0.2) : .clear)
             .foregroundStyle(active ? Color.accentColor : Color.primary)
             .clipShape(RoundedRectangle(cornerRadius: 9))
+            .contentShape(Rectangle())
     }
 
     private var isShapeActive: Bool {
@@ -95,73 +102,45 @@ struct ToolbarView: View {
         return false
     }
     private var isFlowchartActive: Bool {
-        if case .flowchart = editor.tool { return true }; return false
+        if case .flowchart = editor.tool { return true }
+        return false
     }
 
-    // MARK: - Context controls (color + size for the active tool)
+    // MARK: - Color (popover) + size (menu) for the active tool
 
-    @ViewBuilder
-    private var contextControls: some View {
+    private var colorBinding: Binding<RGBAColor>? {
         switch editor.tool {
-        case .pen:
-            colorSwatches(selection: $editor.penColor)
-            widthMenu(sizes: ToolDefaults.penSizes, selection: $editor.penWidth)
-        case .highlighter:
-            colorSwatches(selection: $editor.highlighterColor)
-            widthMenu(sizes: ToolDefaults.highlighterSizes, selection: $editor.highlighterWidth)
-        case .eraserPixel:
-            widthMenu(sizes: [10, 20, 30, 45, 60], selection: $editor.eraserWidth)
-        case .shape, .flowchart:
-            colorSwatches(selection: $editor.shapeStrokeColor)
-            widthMenu(sizes: ToolDefaults.shapeWidths, selection: $editor.shapeLineWidth)
-            fillToggle
-            selectionActions
-        case .selection:
-            recolorSwatches
-            selectionActions
-        default:
-            EmptyView()
+        case .pen: return $editor.penColor
+        case .highlighter: return $editor.highlighterColor
+        case .shape, .flowchart: return $editor.shapeStrokeColor
+        default: return nil
         }
     }
 
-    /// Swatches that recolor the currently lasso-selected shape/flowchart item.
-    private var recolorSwatches: some View {
-        HStack(spacing: 8) {
-            ForEach(Array(ToolDefaults.palette.enumerated()), id: \.offset) { _, color in
-                Button {
-                    controller.setSelectedColor(color)
-                } label: {
-                    Circle()
-                        .fill(color.color)
-                        .frame(width: 24, height: 24)
-                        .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
+    private var sizeBinding: (sizes: [CGFloat], value: Binding<CGFloat>)? {
+        switch editor.tool {
+        case .pen: return (ToolDefaults.penSizes, $editor.penWidth)
+        case .highlighter: return (ToolDefaults.highlighterSizes, $editor.highlighterWidth)
+        case .eraserPixel: return ([10, 20, 30, 45, 60], $editor.eraserWidth)
+        case .shape, .flowchart: return (ToolDefaults.shapeWidths, $editor.shapeLineWidth)
+        default: return nil
         }
     }
 
-    private func colorSwatches(selection: Binding<RGBAColor>) -> some View {
-        HStack(spacing: 8) {
-            ForEach(Array(ToolDefaults.palette.enumerated()), id: \.offset) { _, color in
-                Button {
-                    selection.wrappedValue = color
-                } label: {
-                    Circle()
-                        .fill(color.color)
-                        .frame(width: 24, height: 24)
-                        .overlay(Circle().stroke(Color.accentColor,
-                                                 lineWidth: selection.wrappedValue == color ? 3 : 0))
-                        .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-            ColorPicker("", selection: Binding(
-                get: { selection.wrappedValue.color },
-                set: { selection.wrappedValue = RGBAColor($0) }
-            ))
-            .labelsHidden()
-            .frame(width: 28, height: 28)
+    private func colorButton(_ selection: Binding<RGBAColor>) -> some View {
+        Button {
+            showColorPopover = true
+        } label: {
+            Circle()
+                .fill(selection.wrappedValue.color)
+                .frame(width: 26, height: 26)
+                .overlay(Circle().stroke(Color.primary.opacity(0.25), lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showColorPopover) {
+            ColorPalettePopover(selection: selection)
+                .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -181,54 +160,64 @@ struct ToolbarView: View {
         } label: {
             HStack(spacing: 6) {
                 Circle().fill(Color.primary)
-                    .frame(width: min(selection.wrappedValue + 2, 18),
-                           height: min(selection.wrappedValue + 2, 18))
-                    .frame(width: 22, height: 22)
-                Text("\(Int(selection.wrappedValue))")
-                    .font(.caption.monospacedDigit())
+                    .frame(width: min(selection.wrappedValue + 2, 16),
+                           height: min(selection.wrappedValue + 2, 16))
+                    .frame(width: 20, height: 20)
+                Text("\(Int(selection.wrappedValue))").font(.caption.monospacedDigit())
             }
             .frame(height: 34)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 8)
             .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
-    private var fillToggle: some View {
-        Button {
-            editor.shapeFillColor = editor.shapeFillColor.alpha > 0 ? .clear : editor.shapeStrokeColor
-        } label: {
-            Image(systemName: editor.shapeFillColor.alpha > 0 ? "square.fill" : "square")
-                .font(.system(size: 18))
-                .frame(width: 36, height: 34)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var selectionActions: some View {
-        HStack(spacing: 6) {
-            Button {
-                controller.duplicateSelection()
-            } label: { Image(systemName: "plus.square.on.square").frame(width: 36, height: 34) }
-                .buttonStyle(.plain)
-            Button(role: .destructive) {
-                controller.deleteSelection()
-            } label: { Image(systemName: "trash").frame(width: 36, height: 34) }
-                .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
     }
 
     // MARK: - History
 
     private var historyControls: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Button { controller.undo() } label: {
-                Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 34)
+                Image(systemName: "arrow.uturn.backward").frame(width: 36, height: 34).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             Button { controller.redo() } label: {
-                Image(systemName: "arrow.uturn.forward").frame(width: 36, height: 34)
+                Image(systemName: "arrow.uturn.forward").frame(width: 36, height: 34).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// Swatch grid + system color picker shown in the color popover.
+private struct ColorPalettePopover: View {
+    @Binding var selection: RGBAColor
+
+    private let columns = Array(repeating: GridItem(.fixed(34), spacing: 10), count: 4)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(Array(ToolDefaults.palette.enumerated()), id: \.offset) { _, color in
+                    Button {
+                        selection = color
+                    } label: {
+                        Circle()
+                            .fill(color.color)
+                            .frame(width: 30, height: 30)
+                            .overlay(Circle().stroke(Color.accentColor,
+                                                     lineWidth: selection == color ? 3 : 0))
+                            .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            ColorPicker("Custom", selection: Binding(
+                get: { selection.color },
+                set: { selection = RGBAColor($0) }
+            ))
+            .font(.subheadline)
+        }
+        .padding(16)
+        .frame(width: 220)
     }
 }
