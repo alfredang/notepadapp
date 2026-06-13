@@ -17,6 +17,13 @@ final class PageContainerView: UIView {
     let overlay: ShapeOverlayView
     private let contentView = UIView()
     private let backgroundImageView = UIImageView()
+    private let footerLabel = UILabel()
+
+    private static let footerDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "d MMM yyyy, h:mm a"
+        return f
+    }()
 
     init(page: Page) {
         self.page = page
@@ -67,6 +74,26 @@ final class PageContainerView: UIView {
         overlay.items = page.items
         overlay.isUserInteractionEnabled = false
         contentView.addSubview(overlay)
+
+        // Page number + date/time stamp, bottom-right.
+        footerLabel.font = .systemFont(ofSize: 19, weight: .medium)
+        footerLabel.textAlignment = .right
+        footerLabel.frame = CGRect(x: pageSize.width - 360, y: pageSize.height - 44,
+                                   width: 336, height: 24)
+        footerLabel.autoresizingMask = [.flexibleTopMargin, .flexibleLeftMargin]
+        footerLabel.isUserInteractionEnabled = false
+        contentView.addSubview(footerLabel)
+        updateFooter()
+    }
+
+    /// Refreshes the bottom-right "Page N · date time" stamp.
+    func updateFooter() {
+        let show = UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
+        footerLabel.isHidden = !show
+        let onDark = page.paperStyle == .blackboard
+        footerLabel.textColor = (onDark ? UIColor.white : UIColor.black).withAlphaComponent(0.45)
+        let date = PageContainerView.footerDateFormatter.string(from: page.updatedAt)
+        footerLabel.text = "Page \(page.pageIndex + 1)  ·  \(date)"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -85,6 +112,7 @@ final class PageContainerView: UIView {
         overlay.items = page.items
         backgroundImageView.image = page.backgroundData.isEmpty ? nil : UIImage(data: page.backgroundData)
         contentView.backgroundColor = PageContainerView.surfaceColor(for: page.paperStyle)
+        updateFooter()
     }
 
     /// The fill color for a given paper template.

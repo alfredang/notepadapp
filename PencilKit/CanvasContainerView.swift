@@ -113,6 +113,7 @@ struct CanvasContainerView: UIViewRepresentable {
         private var autoFitScale: CGFloat = 0
         private var requestedNewPage = false
         private var requestedNewPageTop = false
+        private var thumbnailRefreshTask: Task<Void, Never>?
 
         init(editor: EditorViewModel, autoSave: AutoSaveService, controller: CanvasController) {
             self.editor = editor
@@ -298,8 +299,10 @@ struct CanvasContainerView: UIViewRepresentable {
             }
             // Arrange in order, reusing/moving existing views (no full teardown).
             for (i, pv) in result.enumerated() {
-                if stack.arrangedSubviews.indices.contains(i), stack.arrangedSubviews[i] === pv { continue }
-                stack.insertArrangedSubview(pv, at: i)
+                if !(stack.arrangedSubviews.indices.contains(i) && stack.arrangedSubviews[i] === pv) {
+                    stack.insertArrangedSubview(pv, at: i)
+                }
+                pv.updateFooter() // refresh page number after insert/delete/reorder
             }
             pageViews = result
         }
@@ -455,6 +458,18 @@ struct CanvasContainerView: UIViewRepresentable {
             guard let page = pageForCanvas[ObjectIdentifier(canvasView)] else { return }
             page.drawingData = canvasView.drawing.dataRepresentation()
             autoSave.scheduleSave(touching: page)
+            scheduleThumbnailRefresh()
+        }
+
+        /// Refreshes sidebar thumbnails a moment after drawing stops (so they
+        /// reflect the latest content without re-rendering on every stroke).
+        private func scheduleThumbnailRefresh() {
+            thumbnailRefreshTask?.cancel()
+            thumbnailRefreshTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(0.7))
+                if Task.isCancelled { return }
+                self?.controller.refreshThumbnails()
+            }
         }
     }
 }
