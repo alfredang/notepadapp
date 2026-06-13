@@ -390,14 +390,15 @@ struct CanvasContainerView: UIViewRepresentable {
             requestedNewPageTop = false
         }
 
-        func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            if bottomOverscroll(scrollView) > 50 { appendPageOnce() }
-            if topOverscroll(scrollView) > 50 { prependPageOnce() }
-        }
+        /// A new page is created only on a deliberate pull-and-release: the user
+        /// must drag well past the edge (against the rubber-band resistance) and
+        /// lift. A casual scroll or flick won't reach the threshold, so it never
+        /// spawns stray blank pages.
+        private let pullThreshold: CGFloat = 130
 
         func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-            if bottomOverscroll(scrollView) > 20 { appendPageOnce() }
-            if topOverscroll(scrollView) > 20 { prependPageOnce() }
+            if bottomOverscroll(scrollView) > pullThreshold { appendPageOnce() }
+            if topOverscroll(scrollView) > pullThreshold { prependPageOnce() }
         }
 
         private func bottomOverscroll(_ scrollView: UIScrollView) -> CGFloat {
