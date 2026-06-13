@@ -7,6 +7,12 @@ import PencilKit
 final class StrokeCanvasView: PKCanvasView {
     private let strokeUndoManager = UndoManager()
     override var undoManager: UndoManager? { strokeUndoManager }
+
+    /// True while a drawing is being set programmatically (page load / reload).
+    /// PencilKit still fires `canvasViewDrawingDidChange` for these non-edits
+    /// (often asynchronously), so the delegate uses this to avoid stamping the
+    /// page's `updatedAt` for a load. It is cleared the moment a real stroke begins.
+    var loadingDrawing = false
 }
 
 /// A single A4 page: white rounded card hosting a PencilKit canvas with a
@@ -64,6 +70,7 @@ final class PageContainerView: UIView {
         canvas.frame = contentView.bounds
         canvas.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         if let drawing = try? PKDrawing(data: page.drawingData) {
+            (canvas as? StrokeCanvasView)?.loadingDrawing = true
             canvas.drawing = drawing
         }
         contentView.addSubview(canvas)
@@ -102,6 +109,7 @@ final class PageContainerView: UIView {
 
     /// Reloads visual content from the model (after clear / external change).
     func reloadFromModel() {
+        (canvas as? StrokeCanvasView)?.loadingDrawing = true
         if page.drawingData.isEmpty {
             canvas.drawing = PKDrawing()
         } else if let drawing = try? PKDrawing(data: page.drawingData) {

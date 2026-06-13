@@ -473,6 +473,9 @@ struct CanvasContainerView: UIViewRepresentable {
         /// palm can't pan the page (palm rejection for the scroll view; PencilKit
         /// already rejects the palm for drawing).
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            // A genuine user edit is starting — make sure a load that never echoed
+            // can't suppress this stroke's timestamp update.
+            (canvasView as? StrokeCanvasView)?.loadingDrawing = false
             scrollView?.isScrollEnabled = false
         }
 
@@ -481,9 +484,16 @@ struct CanvasContainerView: UIViewRepresentable {
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            // Ignore the echo of a programmatic drawing load (open / reload): it is
+            // not a user edit, so it must not stamp the page's updatedAt.
+            if let canvas = canvasView as? StrokeCanvasView, canvas.loadingDrawing {
+                canvas.loadingDrawing = false
+                return
+            }
             guard let page = pageForCanvas[ObjectIdentifier(canvasView)] else { return }
             page.drawingData = canvasView.drawing.dataRepresentation()
-            autoSave.scheduleSave(touching: page)
+            autoSave.scheduleSave(touching: page)   // touches updatedAt synchronously
+            pageViews.first { $0.canvas === canvasView }?.updateFooter()
             scheduleThumbnailRefresh()
         }
 
