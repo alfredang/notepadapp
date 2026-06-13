@@ -51,17 +51,19 @@ enum PageRenderer {
             context.addPath(path.cgPath)
             context.strokePath()
 
-            // Node label
-            if let text = item.text, !text.isEmpty, item.kind.isNode {
-                drawLabel(text, in: item.frame, color: item.strokeColor.uiColor)
+            // Node / sticky-note label
+            if let text = item.text, !text.isEmpty, item.kind.hasLabel {
+                // Sticky notes read as top-left text; flowchart nodes center theirs.
+                let alignment: NSTextAlignment = item.kind == .stickyNote ? .natural : .center
+                drawLabel(text, in: item.frame, color: item.strokeColor.uiColor, alignment: alignment)
             }
             context.restoreGState()
         }
     }
 
-    private static func drawLabel(_ text: String, in rect: CGRect, color: UIColor) {
+    private static func drawLabel(_ text: String, in rect: CGRect, color: UIColor, alignment: NSTextAlignment = .center) {
         let style = NSMutableParagraphStyle()
-        style.alignment = .center
+        style.alignment = alignment
         style.lineBreakMode = .byWordWrapping
         let attrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 16, weight: .medium),
@@ -75,12 +77,10 @@ enum PageRenderer {
             attributes: attrs,
             context: nil
         )
-        let drawRect = CGRect(
-            x: inset.minX,
-            y: inset.midY - bounding.height / 2,
-            width: inset.width,
-            height: bounding.height
-        )
+        // Sticky notes anchor text to the top; everything else is vertically centered.
+        let drawRect = alignment == .natural
+            ? CGRect(x: inset.minX, y: inset.minY, width: inset.width, height: inset.height)
+            : CGRect(x: inset.minX, y: inset.midY - bounding.height / 2, width: inset.width, height: bounding.height)
         (text as NSString).draw(with: drawRect, options: [.usesLineFragmentOrigin], attributes: attrs, context: nil)
     }
 }
