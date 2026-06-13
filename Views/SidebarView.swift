@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Page thumbnail sidebar: preview, jump-to, reorder, add, and multi-select delete.
+/// Page thumbnail sidebar: preview, jump-to, add, multi-select delete, and
+/// drag-to-reorder (in Select mode).
 struct SidebarView: View {
     @Bindable var viewModel: NotebookViewModel
 
-    @State private var selecting = false
+    @State private var editMode: EditMode = .inactive
     @State private var selectedIDs: Set<UUID> = []
+
+    private var selecting: Bool { editMode == .active }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -19,15 +22,14 @@ struct SidebarView: View {
                 .onMove { source, dest in viewModel.movePages(from: source, to: dest) }
             }
             .listStyle(.plain)
+            .environment(\.editMode, $editMode)
 
             if selecting {
                 Button(role: .destructive) {
                     viewModel.deletePages(ids: selectedIDs)
                     selectedIDs.removeAll()
-                    selecting = false
                 } label: {
-                    Label("Delete \(selectedIDs.count) Page\(selectedIDs.count == 1 ? "" : "s")",
-                          systemImage: "trash")
+                    Label("Delete \(selectedIDs.count)", systemImage: "trash")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -46,12 +48,12 @@ struct SidebarView: View {
             Spacer()
             if selecting {
                 Button("Done") {
-                    selecting = false
+                    withAnimation { editMode = .inactive }
                     selectedIDs.removeAll()
                 }
             } else {
                 Button {
-                    selecting = true
+                    withAnimation { editMode = .active }
                 } label: {
                     Image(systemName: "checkmark.circle")
                 }
@@ -86,6 +88,7 @@ struct SidebarView: View {
                 .overlay(alignment: .topTrailing) {
                     if selecting {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
                             .foregroundStyle(isSelected ? Color.red : Color.secondary)
                             .background(Circle().fill(.background))
                             .padding(4)

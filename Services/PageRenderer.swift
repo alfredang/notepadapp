@@ -5,14 +5,23 @@ import AVFoundation
 /// Renders a page (PencilKit drawing + vector overlay) to a raster image.
 /// Used for thumbnails and PNG/JPG/PDF export.
 enum PageRenderer {
-    /// Renders the page at the full A4 point size, scaled by `scale`.
-    static func image(for page: Page, scale: CGFloat = 1, background: UIColor = .white) -> UIImage {
+    /// The fill color for a paper template (white paper vs. dark blackboard).
+    static func surfaceColor(for style: PaperStyle) -> UIColor {
+        switch style {
+        case .white: .white
+        case .blackboard: UIColor(red: 0.09, green: 0.16, blue: 0.13, alpha: 1)
+        }
+    }
+
+    /// Renders the page at the full A4 point size, scaled by `scale`. When
+    /// `background` is nil the page's own template surface color is used.
+    static func image(for page: Page, scale: CGFloat = 1, background: UIColor? = nil) -> UIImage {
         let size = page.canvasSize
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = scale
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         return renderer.image { ctx in
-            background.setFill()
+            (background ?? surfaceColor(for: page.paperStyle)).setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
 
             // Imported background (e.g. a PDF page) sits beneath everything,
