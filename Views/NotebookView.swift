@@ -91,6 +91,19 @@ struct NotebookView: View {
             .toggleStyle(.button)
         }
         ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button {
+                    notebookVM.extendCurrentPage()
+                    controller.scrollToPage(notebookVM.selectedPageIndex)
+                } label: { Label("Extend Page", systemImage: "arrow.down.to.line") }
+                Button {
+                    notebookVM.resetCurrentPageHeight()
+                } label: { Label("Reset Page Height", systemImage: "arrow.up.to.line") }
+            } label: {
+                Image(systemName: "rectangle.expand.vertical")
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
             Button {
                 showPDFImporter = true
             } label: {

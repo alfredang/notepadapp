@@ -7,7 +7,7 @@ import AVFoundation
 enum PageRenderer {
     /// Renders the page at the full A4 point size, scaled by `scale`.
     static func image(for page: Page, scale: CGFloat = 1, background: UIColor = .white) -> UIImage {
-        let size = PageGeometry.a4
+        let size = page.canvasSize
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = scale
         let renderer = UIGraphicsImageRenderer(size: size, format: format)

@@ -12,9 +12,10 @@ final class PageContainerView: UIView {
 
     init(page: Page) {
         self.page = page
-        self.canvas = PKCanvasView(frame: CGRect(origin: .zero, size: PageGeometry.a4))
-        self.overlay = ShapeOverlayView(frame: CGRect(origin: .zero, size: PageGeometry.a4))
-        super.init(frame: CGRect(origin: .zero, size: PageGeometry.a4))
+        let pageSize = page.canvasSize
+        self.canvas = PKCanvasView(frame: CGRect(origin: .zero, size: pageSize))
+        self.overlay = ShapeOverlayView(frame: CGRect(origin: .zero, size: pageSize))
+        super.init(frame: CGRect(origin: .zero, size: pageSize))
 
         // Soft shadow on the outer view.
         layer.shadowColor = UIColor.black.cgColor
@@ -58,7 +59,7 @@ final class PageContainerView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override var intrinsicContentSize: CGSize { PageGeometry.a4 }
+    override var intrinsicContentSize: CGSize { page.canvasSize }
 
     /// Reloads visual content from the model (after clear / external change).
     func reloadFromModel() {

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import CoreGraphics
 
 /// A single A4 page. Stores the PencilKit drawing as raw data and the vector
 /// overlay items as JSON-encoded `Data`.
@@ -26,6 +27,10 @@ final class Page {
     /// user annotates on top of. Empty for blank pages.
     @Attribute(.externalStorage) var backgroundData: Data = Data()
 
+    /// How many stacked A4 heights this page spans. 1 = a standard page; larger
+    /// values give an extended, continuous ("infinite") vertical canvas.
+    var heightUnits: Int = 1
+
     /// Owning notebook (inverse of `Notebook.pages`).
     var notebook: Notebook?
 
@@ -38,6 +43,7 @@ final class Page {
         shapesData: Data = Data(),
         recognizedText: String = "",
         backgroundData: Data = Data(),
+        heightUnits: Int = 1,
         notebook: Notebook? = nil
     ) {
         self.id = id
@@ -48,7 +54,13 @@ final class Page {
         self.shapesData = shapesData
         self.recognizedText = recognizedText
         self.backgroundData = backgroundData
+        self.heightUnits = heightUnits
         self.notebook = notebook
+    }
+
+    /// The page's canvas size in points — A4 width, height scaled by `heightUnits`.
+    var canvasSize: CGSize {
+        CGSize(width: PageGeometry.a4.width, height: PageGeometry.a4.height * CGFloat(max(1, heightUnits)))
     }
 
     /// Decoded overlay items. Setting re-encodes to `shapesData`.

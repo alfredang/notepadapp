@@ -98,6 +98,26 @@ final class NotebookViewModel {
         }
     }
 
+    // MARK: - Infinite / extendable canvas
+
+    /// Grows the current page by one more A4 height (up to a sane cap).
+    func extendCurrentPage() {
+        guard let page = selectedPage else { return }
+        page.heightUnits = min(page.heightUnits + 1, 12)
+        page.touch()
+        try? repository.save()
+        bump()
+    }
+
+    /// Restores the current page to a single A4 height.
+    func resetCurrentPageHeight() {
+        guard let page = selectedPage, page.heightUnits != 1 else { return }
+        page.heightUnits = 1
+        page.touch()
+        try? repository.save()
+        bump()
+    }
+
     func bump() { refreshToken &+= 1 }
 
     private func perform(_ action: () throws -> Page) {
