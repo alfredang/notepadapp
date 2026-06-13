@@ -340,13 +340,7 @@ final class ShapeOverlayView: UIView {
         tv.isScrollEnabled = true
         tv.text = (item.text == defaultLabel(for: item.kind)) ? "" : (item.text ?? "")
 
-        let bar = UIToolbar()
-        bar.items = [
-            UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil),
-            UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(finishTextEditing))
-        ]
-        bar.sizeToFit()
-        tv.inputAccessoryView = bar
+        tv.inputAccessoryView = makeEditingAccessory()
 
         addSubview(tv)
         activeTextView = tv
@@ -357,6 +351,46 @@ final class ShapeOverlayView: UIView {
 
     @objc private func finishTextEditing() {
         activeTextView?.resignFirstResponder()
+    }
+
+    /// Sets the background (fill) color of the element being edited, and picks a
+    /// readable text/border color (dark on light fills, light on dark fills).
+    private func setEditingItemFill(_ color: RGBAColor) {
+        guard let id = editingItemID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        let lum = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
+        let textColor: RGBAColor = lum > 0.6
+            ? RGBAColor(red: 0.12, green: 0.12, blue: 0.12)
+            : RGBAColor(red: 1, green: 1, blue: 1)
+        items[idx].fillColor = color
+        items[idx].strokeColor = textColor
+        activeTextView?.backgroundColor = color.uiColor
+        activeTextView?.textColor = textColor.uiColor
+        activeTextView?.tintColor = textColor.uiColor
+        onChange(items)
+        setNeedsDisplay()
+    }
+
+    /// Keyboard-accessory toolbar with a background-color menu and Done.
+    private func makeEditingAccessory() -> UIToolbar {
+        let bar = UIToolbar()
+        let colorActions = zip(ToolDefaults.extendedPalette,
+                               ["Black", "Dark Gray", "Gray", "Light Gray", "Silver", "White",
+                                "Dark Red", "Red", "Salmon", "Pink", "Magenta", "Purple",
+                                "Brown", "Dark Orange", "Orange", "Amber", "Yellow", "Lime",
+                                "Dark Green", "Green", "Emerald", "Teal",
+                                "Blue", "Indigo", "Sky", "Navy"])
+            .map { color, name in
+                UIAction(title: name, image: ShapeOverlayView.swatch(color.uiColor)) { [weak self] _ in
+                    self?.setEditingItemFill(color)
+                }
+            }
+        let colorMenu = UIMenu(title: "Background Color", children: colorActions)
+        let colorItem = UIBarButtonItem(title: "Background",
+                                        image: UIImage(systemName: "paintpalette"), menu: colorMenu)
+        let done = UIBarButtonItem(barButtonSystemItem: .done, target: self, action: #selector(finishTextEditing))
+        bar.items = [colorItem, UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil), done]
+        bar.sizeToFit()
+        return bar
     }
 
     /// Default placeholder text per kind (so it isn't shown as real content).
