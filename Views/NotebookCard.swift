@@ -35,21 +35,6 @@ struct NotebookCard: View {
                     .lineLimit(1)
             }
 
-            HStack(spacing: 6) {
-                Image(systemName: "doc.on.doc")
-                    .imageScale(.small)
-                Text("\(notebook.pageCount) pages")
-                if notebook.orderedChildren.count > 0 {
-                    Text("· \(notebook.orderedChildren.count) folders")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            Text("Updated \(notebook.updatedAt.relativeDescription)")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-
             if !notebook.tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -64,6 +49,21 @@ struct NotebookCard: View {
                     }
                 }
             }
+
+            HStack(spacing: 6) {
+                Image(systemName: "doc.on.doc")
+                    .imageScale(.small)
+                Text("\(notebook.pageCount) pages")
+                if notebook.orderedChildren.count > 0 {
+                    Text("· \(notebook.orderedChildren.count) folders")
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Text("Updated \(notebook.updatedAt.relativeDescription)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
         .padding(12)
         .background(
