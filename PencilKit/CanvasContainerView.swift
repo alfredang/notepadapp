@@ -41,10 +41,10 @@ struct CanvasContainerView: UIViewRepresentable {
         scrollView.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 28),
-            stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -28),
-            stack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 28),
-            stack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -28)
+            stack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -16),
+            stack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor, constant: 8),
+            stack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor, constant: -8)
         ])
 
         context.coordinator.scrollView = scrollView
@@ -123,6 +123,7 @@ struct CanvasContainerView: UIViewRepresentable {
             }
             controller.currentVisiblePage = { [weak self] in self?.mostVisiblePageView()?.page }
             controller.clearVisiblePage = { [weak self] in self?.clearVisiblePage() }
+            controller.applyTool = { [weak self] in self?.applyTool() }
         }
 
         /// Clears the on-screen canvas + overlay for the visible page and persists it.
@@ -137,16 +138,15 @@ struct CanvasContainerView: UIViewRepresentable {
             autoSave.saveNow()
         }
 
-        /// Zooms so the whole first page is visible the first time the editor
-        /// lays out (so notes open showing the full page, not a zoomed-in corner).
+        /// Zooms so the page fills the editor's full width the first time it lays
+        /// out (GoodNotes-style: no side dead space; scroll vertically for more).
         func fitToPageIfNeeded() {
             guard !didInitialFit, let scrollView, let pv = pageViews.first else { return }
             let bounds = scrollView.bounds.size
             guard bounds.width > 1, bounds.height > 1 else { return }
             let pageSize = pv.page.canvasSize
-            let inset: CGFloat = 56 // top/bottom + leading/trailing stack padding
-            let scale = min((bounds.width - inset) / pageSize.width,
-                            (bounds.height - inset) / pageSize.height)
+            let sidePadding: CGFloat = 16 // 8pt leading + 8pt trailing
+            let scale = (bounds.width - sidePadding) / pageSize.width
             let clamped = max(scrollView.minimumZoomScale, min(scrollView.maximumZoomScale, scale))
             scrollView.setZoomScale(clamped, animated: false)
             editor.zoomScale = clamped

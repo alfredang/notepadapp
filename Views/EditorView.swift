@@ -33,6 +33,8 @@ struct EditorView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: editor.isPaletteHidden)
+        // Push tool/color/width changes to the canvas the instant they change.
+        .onChange(of: editor.toolStateToken) { _, _ in controller.applyTool() }
     }
 
     private var zoomControls: some View {
