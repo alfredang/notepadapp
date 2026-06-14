@@ -12,7 +12,9 @@ struct EditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !editor.isPaletteHidden {
+            // The drawing toolbar only appears on the editing device (iPad);
+            // iPhone / Mac are view-only (scroll, zoom, page-jump).
+            if editor.isEditable && !editor.isPaletteHidden {
                 ToolbarView(editor: editor, controller: controller)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

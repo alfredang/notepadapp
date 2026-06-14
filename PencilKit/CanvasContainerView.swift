@@ -396,6 +396,19 @@ struct CanvasContainerView: UIViewRepresentable {
 
         /// Applies the current tool to every page's canvas + overlay.
         func applyTool() {
+            // View-only devices (iPhone / Mac): allow scroll + zoom, block all
+            // drawing and selection so the page can't be altered.
+            guard editor.isEditable else {
+                scrollView?.isScrollEnabled = true
+                scrollView?.pinchGestureRecognizer?.isEnabled = true
+                scrollView?.panGestureRecognizer.minimumNumberOfTouches = 1
+                for pv in pageViews {
+                    pv.canvas.drawingGestureRecognizer.isEnabled = false
+                    pv.overlay.tool = .pen   // non-overlay tool → overlay ignores touches
+                }
+                return
+            }
+
             let tool = editor.tool
             let isSelection = (tool == .selection)
             let isOverlayDraw: Bool = {

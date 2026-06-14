@@ -6,13 +6,38 @@ import SwiftUI
 struct ToolbarView: View {
     @Bindable var editor: EditorViewModel
     let controller: CanvasController
+    @Environment(\.horizontalSizeClass) private var hSizeClass
 
     @State private var showColorPopover = false
     @State private var showShapePopover = false
     @State private var showFlowchartPopover = false
     @State private var showTemplatePopover = false
 
+    /// iPhone (compact) packs every control into one horizontally scrollable
+    /// row; iPad/Mac keep the full single-line layout (unchanged).
+    private var isCompact: Bool { hSizeClass == .compact }
+
     var body: some View {
+        Group {
+            if isCompact {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    toolbarRow(compact: true)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                }
+            } else {
+                toolbarRow(compact: false)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemBackground))
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    @ViewBuilder
+    private func toolbarRow(compact: Bool) -> some View {
         HStack(spacing: 8) {
             toolGroup
             if colorBinding != nil || sizeBinding != nil {
@@ -20,16 +45,17 @@ struct ToolbarView: View {
             }
             if let cb = colorBinding { colorButton(cb) }
             if let sb = sizeBinding { widthMenu(sizes: sb.sizes, selection: sb.value) }
-            Spacer(minLength: 8)
+            // iPad/Mac push page + history controls to the trailing edge; on a
+            // scrollable compact row a Spacer can't expand, so use a fixed gap.
+            if compact {
+                Divider().frame(height: 28)
+            } else {
+                Spacer(minLength: 8)
+            }
             pageControls
             Divider().frame(height: 28)
             historyControls
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(Color(.secondarySystemBackground))
-        .overlay(alignment: .bottom) { Divider() }
     }
 
     // MARK: - Tools

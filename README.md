@@ -1,15 +1,17 @@
-# NotePad — Native iPad Note-Taking App
+# NotePad — Native Apple Note-Taking App
 
-A clean, native iPad note-taking app optimized for Apple Pencil, with a
-**GoodNotes-style** editor: a compact horizontal tool bar, white-paper or
-blackboard templates, handwriting, shapes & flowcharts, PDF annotation, and
-notebook organization with tags — all synced across devices via iCloud.
+A clean, native note-taking app optimized for Apple Pencil, with a
+**GoodNotes-style** editor: a compact horizontal tool bar, combinable paper
+surfaces & patterns, handwriting, a full shapes & flowcharts library, PDF
+annotation, and notebook organization with tags — all synced across devices via
+iCloud. **Universal**: edit on iPad with the Apple Pencil, and **review your
+notes on iPhone and Mac** (view-only, so they can't be altered by accident).
 
 Published on the App Store as **Tertiary NotePad**, by **Tertiary Infotech
 Academy Pte Ltd**.
 
 ![Build](https://github.com/alfredang/notepadapp/actions/workflows/build.yml/badge.svg)
-![Platform](https://img.shields.io/badge/platform-iPadOS%2018%2B-blue)
+![Platform](https://img.shields.io/badge/platform-iPadOS%20%7C%20iOS%2018%2B%20%7C%20macOS-blue)
 ![Swift](https://img.shields.io/badge/Swift-6-orange)
 
 <p align="center">
@@ -27,12 +29,18 @@ Academy Pte Ltd**.
   **Palm rejection**: scrolling is suspended while the Pencil draws.
 - **Pencil draws, finger scrolls** (the GoodNotes model); a single finger pans
   and two fingers always pinch-zoom. Finger-drawing is an opt-in toggle/setting.
+- **Hold-to-straighten** — draw a line and hold the Pencil still at the end; the
+  wobbly stroke snaps to a clean straight segment (with a haptic tick).
 - **Tools** — pen (8 widths), highlighter, pixel & object erasers, plus a
   **color dropdown** with 26 swatches and a custom color picker.
-- **Shapes** — rectangle, circle, triangle, diamond, line, arrow as an editable
-  **vector overlay** (stroke / fill / width).
-- **Flowcharts** — process, decision, start/end nodes and connectors that **snap
-  to nodes** and re-route automatically when a node moves.
+- **Shapes (14)** — rectangle, rounded rectangle, circle, triangle, right
+  triangle, diamond, pentagon, hexagon, star, parallelogram, trapezoid, line,
+  arrow, double-arrow — an editable **vector overlay** (stroke / fill / width)
+  shown in an icon grid whose previews are drawn with the real geometry.
+- **Flowcharts (14)** — process, decision, terminator, data, document,
+  predefined process, database (cylinder), manual input/operation, preparation,
+  connector, card, off-page connector, and a flow arrow. Nodes carry editable
+  labels; connectors **snap to nodes** and re-route automatically when moved.
 - **Inline text** — type **directly into** sticky notes and flowchart nodes with
   a multi-line editor; pick a **background color** (text auto-contrasts), tap a
   node to edit, tap away to commit. Node text is centered.
@@ -41,8 +49,15 @@ Academy Pte Ltd**.
   (delete · duplicate · change color) and drag to move.
 
 ### Templates & appearance
-- **White paper or blackboard** templates, applied **notebook-wide**. Switching
-  recolors existing ink (dark ink ⇄ white chalk) and new pages inherit it.
+- **Surface × Pattern** — two independent axes that combine: a **surface**
+  (Whiteboard · Paper / warm cream · Blackboard) and a **pattern** overlay
+  (Blank · Lined · Dotted · Grid). Any surface works with any pattern (e.g.
+  Blackboard + Grid), and the pattern color adapts so it stays visible on dark
+  surfaces. New notebooks default to **Portrait · Blackboard · Blank**.
+- **Layout** — switch a notebook between **Portrait** and **Landscape**; pages
+  resize live and the view re-fits.
+- Templates apply **notebook-wide**; switching surface recolors existing ink
+  (dark ink ⇄ white chalk) and new pages inherit the template.
 - **Adaptive light/dark** — ink renders literally on the page (and in
   thumbnails), while chrome and the canvas surround follow the system theme.
 - **Page footer** — "Page N · date & time" at the bottom-right (toggleable).
@@ -50,8 +65,11 @@ Academy Pte Ltd**.
 ### Pages
 - **Continuous paging** — pull firmly past the top/bottom edge and release to add
   a page above/below; or use the **Add Above / Add Below** menu.
-- **Fit-to-width on open**, scroll to the top of the first page; re-fits on
-  rotation. **Double-tap** a page to zoom in / out.
+- **Smart fit** — fills the width in portrait and fits the **whole page** in
+  landscape (or on landscape pages) so nothing overflows; re-fits on rotation.
+  **Double-tap** a page to zoom in / out.
+- **Page-jump chevrons** — floating ⌃ / ⌄ buttons (bottom-right) jump straight to
+  the first / last page.
 - **Thumbnail sidebar** — jump to a page, **multi-select to delete**, and
   **drag-to-reorder**; thumbnails render the real content in the page's colors.
 - **Infinite canvas** — extend a page in A4-height increments.
@@ -74,6 +92,16 @@ Academy Pte Ltd**.
   memos) to a portable `.notebook` file and import it elsewhere.
 - **Audio notes** — record, play back, and delete voice memos per notebook.
 
+### Multi-device (iPad · iPhone · Mac)
+- **iPad** — the editing device: full Apple Pencil drawing, the complete tool
+  bar, and the inline thumbnail sidebar. Its layout is the reference experience.
+- **iPhone** — a **view-only** companion tuned for compact screens: the sidebar
+  becomes a slide-up sheet and the tool bar scrolls horizontally. The canvas is
+  read-only (scroll & zoom), so a stray finger never marks up a note.
+- **Mac** — runs natively via **Mac Catalyst**, **view-only**, great for
+  reviewing notes on a big screen with trackpad scroll/zoom.
+- **One iCloud library** — the same CloudKit notebooks appear everywhere.
+
 ### iPad-native polish
 - **Keyboard shortcuts** — Undo ⌘Z, Redo ⌘⇧Z, New notebook ⌘N, Settings ⌘,.
 - **Pointer hover effects** on toolbar and cards; **VoiceOver labels** on all
@@ -86,7 +114,7 @@ Academy Pte Ltd**.
 - **Swift 6** language mode with **complete strict concurrency**
 - **Observation** framework (`@Observable`), `@MainActor` isolation
 - **MVVM** + **Repository** pattern
-- iPadOS **18+**
+- **Universal**: iPadOS / iOS **18+** and **macOS** (Mac Catalyst)
 
 ## Architecture
 
@@ -117,9 +145,11 @@ App/          App entry (CloudKit container), root view, theme, entitlements
 Models/       Notebook, Page, AudioNote (SwiftData), CanvasItem/Shape (Codable overlay)
 ViewModels/   Dashboard / Notebook / Editor view models, tool + canvas controllers
 Services/     Repositories, AutoSave (+OCR), Export, NotebookArchive, PDFImport,
-              TextRecognition (Vision), Audio (AVFoundation), PageRenderer
-PencilKit/    CanvasContainerView (scroll + zoom host)
-Components/   PageContainerView, ShapeOverlayView, ShapePath, ThumbnailView
+              TextRecognition (Vision), Audio, PageRenderer, PaperPattern,
+              StrokeStraightener
+PencilKit/    CanvasContainerView (scroll + zoom host), HoldStillGestureRecognizer
+Components/   PageContainerView, ShapeOverlayView, ShapePath, ThumbnailView,
+              PaletteGlyphs (shape/paper menu previews)
 Views/        Dashboard, Notebook, Editor, Sidebar, Toolbar, Settings, Export, AudioNotes
 ```
 
@@ -134,7 +164,9 @@ xcodegen generate          # creates NotePadApp.xcodeproj
 open NotePadApp.xcodeproj
 ```
 
-Select an **iPad (iPadOS 18+) simulator** or a physical iPad and press **Run**.
+Select an **iPad / iPhone (18+) simulator**, a physical device, or **My Mac
+(Mac Catalyst)** and press **Run**. The iPad is the editing device; iPhone and
+Mac open notebooks in view-only mode.
 
 ### Command-line build
 
@@ -153,17 +185,21 @@ XcodeGen, generates the project, and compiles for the iOS Simulator on a macOS r
 ## Roadmap
 
 **Shipped:** GoodNotes-style top toolbar · handwriting with pressure/tilt ·
-shapes & flowcharts with snapping connectors · white / blackboard templates
-(notebook-wide, with ink recolor) · inline multi-line text + element background
-colors · multi-stroke lasso · iCloud (CloudKit) sync · handwriting / OCR search ·
-sticky notes · audio (voice-memo) notes · infinite extendable canvas · PDF import
-& annotation · `.notebook` sharing · notebook tags & filtering · pull-to-add
-pages · double-tap zoom · multi-select / drag-reorder pages · iPad HIG polish
-(keyboard shortcuts, pointer hover, VoiceOver). Submitted to the App Store.
+hold-to-straighten lines · 14-shape & 14-component flowchart libraries with
+snapping connectors · **Surface × Pattern** templates (Whiteboard/Paper/
+Blackboard × Blank/Lined/Dotted/Grid, notebook-wide with ink recolor) ·
+**Portrait / Landscape** layout · inline multi-line text + element background
+colors · multi-stroke lasso · long-press to edit/recolor/delete sticky notes ·
+iCloud (CloudKit) sync · handwriting / OCR search · audio (voice-memo) notes ·
+infinite extendable canvas · page-jump chevrons · PDF import & annotation ·
+`.notebook` sharing · notebook tags & filtering · pull-to-add pages · double-tap
+zoom · multi-select / drag-reorder pages · **universal app** (iPad editor;
+iPhone & Mac view-only) · iPad HIG polish (keyboard shortcuts, pointer hover,
+VoiceOver). On the App Store.
 
 **Next:** real-time collaboration (live CKShare co-editing — current sharing is
-file-based) · handwriting-to-text conversion · lined / grid paper templates ·
-web companion.
+file-based) · handwriting-to-text conversion · editing on iPhone/Mac · web
+companion.
 
 ---
 

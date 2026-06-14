@@ -32,6 +32,10 @@ final class EditorViewModel {
     /// Hides the floating tool palette (toggled by a double-tap on the Pencil).
     var isPaletteHidden: Bool = false
 
+    /// When false the canvas is view-only: no drawing/selection, only scroll &
+    /// zoom. iPhone and Mac are view-only; the iPad is the editing device.
+    var isEditable: Bool = true
+
     /// The PencilKit tool resolved from the current state.
     var pkTool: PKTool {
         switch tool {

@@ -4,6 +4,9 @@ import SwiftUI
 /// drag-to-reorder (in Select mode).
 struct SidebarView: View {
     @Bindable var viewModel: NotebookViewModel
+    /// When presented as a sheet (iPhone), fill the width instead of the fixed
+    /// inline sidebar width.
+    var inSheet = false
 
     @State private var editMode: EditMode = .inactive
     @State private var selectedIDs: Set<UUID> = []
@@ -24,7 +27,8 @@ struct SidebarView: View {
             .listStyle(.plain)
             .environment(\.editMode, $editMode)
         }
-        .frame(width: 132)
+        .frame(width: inSheet ? nil : 132)
+        .frame(maxWidth: inSheet ? .infinity : nil)
         .background(Color(.secondarySystemBackground))
     }
 

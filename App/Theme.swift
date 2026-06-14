@@ -7,6 +7,20 @@ enum PageGeometry {
     static var aspectRatio: CGFloat { a4.width / a4.height }
 }
 
+/// Runtime device classification for per-platform UI tweaks.
+@MainActor
+enum DeviceKind {
+    /// Running as a Mac (Catalyst) app.
+    static var isMac: Bool { ProcessInfo.processInfo.isMacCatalystApp }
+    /// Running on iPhone (compact phone idiom).
+    static var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+    /// Running on iPad.
+    static var isPad: Bool { !isMac && UIDevice.current.userInterfaceIdiom == .pad }
+    /// Devices without an Apple Pencil — drawing must accept finger / pointer
+    /// input, otherwise the user can't draw at all.
+    static var drawsWithoutPencil: Bool { isMac || isPhone }
+}
+
 /// Shared visual styling tokens for the paper-notebook look.
 enum Theme {
     static let paper = Color.white

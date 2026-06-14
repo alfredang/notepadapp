@@ -5,7 +5,12 @@ import UniformTypeIdentifiers
 /// An open notebook: thumbnail sidebar + page editor, with page/export actions.
 struct NotebookView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var hSizeClass
     let notebook: Notebook
+
+    /// iPhone (and other compact-width contexts) get a sheet sidebar + scrollable
+    /// toolbar; iPad/Mac (regular) keep the inline split layout.
+    private var isCompact: Bool { hSizeClass == .compact }
 
     @State private var notebookVM: NotebookViewModel
     @State private var editorVM = EditorViewModel()
@@ -32,7 +37,8 @@ struct NotebookView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if showSidebar {
+            // iPad / Mac: inline split sidebar. iPhone: sidebar is a sheet (below).
+            if showSidebar && !isCompact {
                 SidebarView(viewModel: notebookVM)
                     .transition(.move(edge: .leading))
                 Divider()
@@ -48,8 +54,25 @@ struct NotebookView: View {
         .navigationTitle(notebook.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
+        .sheet(isPresented: Binding(
+            get: { showSidebar && isCompact },
+            set: { if !$0 { showSidebar = false } }
+        )) {
+            NavigationStack {
+                SidebarView(viewModel: notebookVM, inSheet: true)
+                    .navigationTitle("Pages")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { showSidebar = false }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .onChange(of: notebookVM.selectedPageIndex) { _, newValue in
             controller.scrollToPage(newValue)
+            if isCompact { showSidebar = false }   // close the sheet after jumping
         }
         .onAppear {
             // Swiping up past the last page appends a new blank page; swiping
@@ -70,7 +93,11 @@ struct NotebookView: View {
                     .flatMap { p in notebookVM.pages.firstIndex { $0.id == p.id } } ?? (notebookVM.pages.count - 1)
                 notebookVM.insertPage(after: i)
             }
-            editorVM.allowsFingerDrawing = allowsFingerDrawing
+            // Only the iPad (with Apple Pencil) edits. iPhone and Mac are
+            // view-only — the canvas accepts scroll/zoom but no drawing, selection,
+            // or template edits, so notes can't be messed up while reviewing them.
+            editorVM.isEditable = DeviceKind.isPad
+            editorVM.allowsFingerDrawing = DeviceKind.isPad ? allowsFingerDrawing : false
             // Default ink to the notebook's surface so it's visible (white
             // chalk on a blackboard, black on white paper).
             let ink = notebookVM.paperSurface.defaultInkColor
@@ -100,6 +127,7 @@ struct NotebookView: View {
             }
         }
         .onChange(of: allowsFingerDrawing) { _, newValue in
+            guard DeviceKind.isPad else { return }   // iPhone / Mac stay view-only
             editorVM.allowsFingerDrawing = newValue
             controller.applyTool()
         }
@@ -129,34 +157,37 @@ struct NotebookView: View {
             }
             .accessibilityLabel("Toggle pages sidebar")
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Toggle(isOn: $allowsFingerDrawing) {
-                Image(systemName: "hand.draw")
+        // Editing controls only on the iPad (iPhone / Mac are view-only).
+        if DeviceKind.isPad {
+            ToolbarItem(placement: .topBarTrailing) {
+                Toggle(isOn: $allowsFingerDrawing) {
+                    Image(systemName: "hand.draw")
+                }
+                .toggleStyle(.button)
+                .accessibilityLabel("Finger drawing")
             }
-            .toggleStyle(.button)
-            .accessibilityLabel("Finger drawing")
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        notebookVM.extendCurrentPage()
+                        controller.scrollToPage(notebookVM.selectedPageIndex)
+                    } label: { Label("Extend Page", systemImage: "arrow.down.to.line") }
+                    Button {
+                        notebookVM.resetCurrentPageHeight()
+                    } label: { Label("Reset Page Height", systemImage: "arrow.up.to.line") }
+                } label: {
+                    Image(systemName: "rectangle.expand.vertical")
+                }
+                .accessibilityLabel("Page size")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    notebookVM.extendCurrentPage()
-                    controller.scrollToPage(notebookVM.selectedPageIndex)
-                } label: { Label("Extend Page", systemImage: "arrow.down.to.line") }
-                Button {
-                    notebookVM.resetCurrentPageHeight()
-                } label: { Label("Reset Page Height", systemImage: "arrow.up.to.line") }
-            } label: {
-                Image(systemName: "rectangle.expand.vertical")
+                    showPDFImporter = true
+                } label: {
+                    Image(systemName: "doc.badge.plus")
+                }
+                .accessibilityLabel("Import PDF")
             }
-            .accessibilityLabel("Page size")
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showPDFImporter = true
-            } label: {
-                Image(systemName: "doc.badge.plus")
-            }
-            .accessibilityLabel("Import PDF")
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
