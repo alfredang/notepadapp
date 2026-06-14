@@ -207,6 +207,25 @@ final class ShapeOverlayView: UIView {
         commitChange(from: before)
     }
 
+    // MARK: - Shape recognition
+
+    /// Adds a vector item recognized from a just-drawn handwritten stroke that the
+    /// caller has already removed from the canvas. `beforeInk` is the drawing
+    /// *including* that original stroke, so a single combined undo restores the
+    /// ink and removes the new shape together.
+    func insertRecognizedItem(kind: ShapeKind, frame: CGRect, start: CGPoint?, end: CGPoint?,
+                              strokeColor: RGBAColor, lineWidth: CGFloat, beforeInk: Data?) {
+        let beforeItems = items
+        var item = makeItem(kind, frame, start, end)
+        // Match the ink the user just drew so the snap feels seamless.
+        item.strokeColor = strokeColor
+        item.lineWidth = lineWidth
+        items.append(item)
+        registerSelectionUndo(items: beforeItems, ink: beforeInk)
+        onChange(items)
+        setNeedsDisplay()
+    }
+
     // MARK: - Undo support
 
     /// Records the change from `before` to the current `items` as one undo step

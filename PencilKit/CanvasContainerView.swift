@@ -574,10 +574,13 @@ struct CanvasContainerView: UIViewRepresentable {
             }
             guard let page = pageForCanvas[ObjectIdentifier(canvasView)] else { return }
 
-            // If the user held still at the end of this stroke, snap it straight.
+            // If the user held still at the end of this stroke, snap it to a clean
+            // vector shape (rectangle / circle / triangle / diamond / line / arrow).
+            // When it isn't a recognizable shape, fall back to straightening the ink.
             if let canvas = canvasView as? StrokeCanvasView, canvas.straightenArmed {
                 canvas.straightenArmed = false
-                if let straightened = StrokeStraightener.straightenLast(in: canvasView.drawing) {
+                if !convertLastStrokeToShape(on: canvas, page: page),
+                   let straightened = StrokeStraightener.straightenLast(in: canvasView.drawing) {
                     canvas.loadingDrawing = true // ignore the echo from this programmatic set
                     canvasView.drawing = straightened
                     UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -588,6 +591,60 @@ struct CanvasContainerView: UIViewRepresentable {
             autoSave.scheduleSave(touching: page)   // touches updatedAt synchronously
             pageViews.first { $0.canvas === canvasView }?.updateFooter()
             scheduleThumbnailRefresh()
+        }
+
+        /// Converts the canvas's most recent stroke into a clean vector shape on
+        /// the overlay when it's recognizable, removing the original ink. The new
+        /// shape and the ink removal collapse into a single undo step. Returns
+        /// false when the stroke isn't a recognizable shape (so the caller can
+        /// fall back to straightening the ink).
+        private func convertLastStrokeToShape(on canvas: StrokeCanvasView, page: Page) -> Bool {
+            guard let stroke = canvas.drawing.strokes.last,
+                  let recognized = ShapeRecognizer.recognizeLast(in: canvas.drawing),
+                  let pv = pageViews.first(where: { $0.canvas === canvas }) else { return false }
+
+            // Snapshot the ink *including* this stroke so undo can restore it.
+            let beforeInk = canvas.drawing.dataRepresentation()
+            let color = RGBAColor(stroke.ink.color)
+            let width = strokeWidth(of: stroke)
+
+            // Remove the original handwritten stroke from the canvas.
+            let kept = Array(canvas.drawing.strokes.dropLast())
+            canvas.loadingDrawing = true // ignore the echo from this programmatic set
+            canvas.drawing = PKDrawing(strokes: kept)
+
+            // Map the recognized primitive to overlay geometry and insert it.
+            let kind: ShapeKind
+            var frame = CGRect.zero
+            var start: CGPoint?
+            var end: CGPoint?
+            switch recognized {
+            case let .shape(k, rect):
+                kind = k; frame = rect
+            case let .line(a, b):
+                kind = .line; start = a; end = b
+                frame = CGRect(x: min(a.x, b.x), y: min(a.y, b.y),
+                               width: abs(b.x - a.x), height: abs(b.y - a.y))
+            case let .arrow(a, tip):
+                kind = .arrow; start = a; end = tip
+                frame = CGRect(x: min(a.x, tip.x), y: min(a.y, tip.y),
+                               width: abs(tip.x - a.x), height: abs(tip.y - a.y))
+            }
+            pv.overlay.insertRecognizedItem(kind: kind, frame: frame, start: start, end: end,
+                                            strokeColor: color, lineWidth: width, beforeInk: beforeInk)
+
+            page.drawingData = canvas.drawing.dataRepresentation()
+            autoSave.scheduleSave(touching: page)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            return true
+        }
+
+        /// Representative stroke width for a recognized shape — the median sampled
+        /// point size, falling back to a sensible default for empty paths.
+        private func strokeWidth(of stroke: PKStroke) -> CGFloat {
+            let sizes = stroke.path.map { $0.size.width }.sorted()
+            guard !sizes.isEmpty else { return 2 }
+            return max(1, sizes[sizes.count / 2])
         }
 
         /// Refreshes sidebar thumbnails a moment after drawing stops (so they
