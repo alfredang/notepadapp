@@ -10,10 +10,13 @@
 	<array>
 		<string>CloudKit</string>
 	</array>
+	<!-- Force this local (dev-signed) Mac build to read the PRODUCTION CloudKit
+	     environment, where the App Store app's notebooks live. APNs stays
+	     development because the build is dev-signed. -->
+	<key>com.apple.developer.icloud-container-environment</key>
+	<string>Production</string>
 	<key>aps-environment</key>
-	<string>production</string>
-	<!-- macOS (Mac Catalyst) only; ignored on iOS. Required for the sandboxed
-	     Mac build to reach CloudKit over the network. -->
+	<string>development</string>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
 	<key>com.apple.security.network.client</key>

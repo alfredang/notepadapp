@@ -30,11 +30,42 @@ struct EditorView: View {
 
                 zoomControls
                     .padding(16)
+
+                if pages.count > 1 {
+                    pageJumpButtons
+                        .padding(16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: editor.isPaletteHidden)
         // Push tool/color/width changes to the canvas the instant they change.
         .onChange(of: editor.toolStateToken) { _, _ in controller.applyTool() }
+    }
+
+    /// Jumps straight to the first / last page of the notebook.
+    private var pageJumpButtons: some View {
+        VStack(spacing: 10) {
+            jumpButton(systemImage: "chevron.up", label: "Jump to first page") {
+                controller.scrollToPage(0)
+            }
+            jumpButton(systemImage: "chevron.down", label: "Jump to last page") {
+                controller.scrollToPage(pages.count - 1)
+            }
+        }
+    }
+
+    private func jumpButton(systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(.regularMaterial, in: Circle())
+                .softShadow()
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
+        .accessibilityLabel(label)
     }
 
     private var zoomControls: some View {

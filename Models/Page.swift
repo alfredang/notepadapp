@@ -29,6 +29,21 @@ enum PaperSurface: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Page orientation. Portrait is the default A4; landscape swaps width/height.
+enum PaperLayout: String, CaseIterable, Identifiable, Sendable {
+    case portrait
+    case landscape
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .portrait: "Portrait"
+        case .landscape: "Landscape"
+        }
+    }
+}
+
 /// A ruled overlay drawn on top of the page surface.
 enum PaperPattern: String, CaseIterable, Identifiable, Sendable {
     case blank
@@ -90,6 +105,9 @@ final class Page {
     /// the legacy `paperStyleRaw`.
     var paperPatternRaw: String = ""
 
+    /// The page's orientation. Stored raw for CloudKit; empty ⇒ portrait.
+    var paperLayoutRaw: String = ""
+
     /// Owning notebook (inverse of `Notebook.pages`).
     var notebook: Notebook?
 
@@ -105,6 +123,7 @@ final class Page {
         heightUnits: Int = 1,
         surface: PaperSurface = .whiteboard,
         pattern: PaperPattern = .blank,
+        layout: PaperLayout = .portrait,
         notebook: Notebook? = nil
     ) {
         self.id = id
@@ -118,6 +137,7 @@ final class Page {
         self.heightUnits = heightUnits
         self.paperSurfaceRaw = surface.rawValue
         self.paperPatternRaw = pattern.rawValue
+        self.paperLayoutRaw = layout.rawValue
         self.notebook = notebook
     }
 
@@ -133,10 +153,25 @@ final class Page {
         set { paperPatternRaw = newValue.rawValue }
     }
 
-    /// The page's canvas size in points — A4 width, height scaled by `heightUnits`.
-    var canvasSize: CGSize {
-        CGSize(width: PageGeometry.a4.width, height: PageGeometry.a4.height * CGFloat(max(1, heightUnits)))
+    /// The page's orientation (defaults to portrait for legacy pages).
+    var paperLayout: PaperLayout {
+        get { PaperLayout(rawValue: paperLayoutRaw) ?? .portrait }
+        set { paperLayoutRaw = newValue.rawValue }
     }
+
+    /// The page's canvas size in points. Portrait is A4; landscape swaps the
+    /// long/short edges. `heightUnits` extends the page in its scroll direction.
+    var canvasSize: CGSize {
+        let a4 = PageGeometry.a4
+        let units = CGFloat(max(1, heightUnits))
+        switch paperLayout {
+        case .portrait: return CGSize(width: a4.width, height: a4.height * units)
+        case .landscape: return CGSize(width: a4.height, height: a4.width * units)
+        }
+    }
+
+    /// Aspect ratio (width / height) of the full page, for thumbnail layout.
+    var aspectRatio: CGFloat { canvasSize.width / canvasSize.height }
 
     /// Decoded overlay items. Setting re-encodes to `shapesData`.
     var items: [CanvasItem] {

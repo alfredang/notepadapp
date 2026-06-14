@@ -55,6 +55,7 @@ final class NotebookViewModel {
             let page = try repository.addPage(to: notebook, at: index)
             page.paperSurface = neighbour?.paperSurface ?? notebook.paperSurface
             page.paperPattern = neighbour?.paperPattern ?? notebook.paperPattern
+            page.paperLayout = neighbour?.paperLayout ?? notebook.paperLayout
             try repository.save()
             bump()
         } catch {
@@ -129,9 +130,21 @@ final class NotebookViewModel {
         bump()
     }
 
+    /// Switches the whole notebook's page orientation (does not touch ink).
+    func setLayout(_ layout: PaperLayout) {
+        notebook.paperLayout = layout
+        for page in pages {
+            page.paperLayout = layout
+            page.touch()
+        }
+        try? repository.save()
+        bump()
+    }
+
     /// The notebook's current template (the source of truth for new pages).
     var paperSurface: PaperSurface { notebook.paperSurface }
     var paperPattern: PaperPattern { notebook.paperPattern }
+    var paperLayout: PaperLayout { notebook.paperLayout }
 
     /// Deletes the pages with the given ids, always keeping at least one page.
     func deletePages(ids: Set<UUID>) {
@@ -200,9 +213,10 @@ final class NotebookViewModel {
         do {
             let page = try action()
             // New pages inherit the notebook's current template.
-            if page.paperSurface != paperSurface || page.paperPattern != paperPattern {
+            if page.paperSurface != paperSurface || page.paperPattern != paperPattern || page.paperLayout != paperLayout {
                 page.paperSurface = paperSurface
                 page.paperPattern = paperPattern
+                page.paperLayout = paperLayout
                 try? repository.save()
             }
             bump()

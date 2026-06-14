@@ -66,6 +66,10 @@ final class NotebookRepository: NotebookRepositoryProtocol {
     func create(title: String, parent: Notebook?) throws(StorageError) -> Notebook {
         let siblingsCount = parent?.children?.count ?? (try? allTopLevel(sortedBy: .createdDate).count) ?? 0
         let notebook = Notebook(title: title, sortIndex: siblingsCount, parent: parent)
+        // Default template for new notebooks: portrait blackboard, blank pattern.
+        notebook.paperSurface = .blackboard
+        notebook.paperPattern = .blank
+        notebook.paperLayout = .portrait
         context.insert(notebook)
         parent?.touch()
         try save()
@@ -99,6 +103,7 @@ final class NotebookRepository: NotebookRepositoryProtocol {
                 shapesData: page.shapesData,
                 surface: page.paperSurface,
                 pattern: page.paperPattern,
+                layout: page.paperLayout,
                 notebook: copy
             )
             context.insert(pageCopy)
@@ -176,6 +181,7 @@ final class PageRepository: PageRepositoryProtocol {
             shapesData: page.shapesData,
             surface: page.paperSurface,
             pattern: page.paperPattern,
+            layout: page.paperLayout,
             notebook: notebook
         )
         context.insert(copy)

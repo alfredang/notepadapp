@@ -16,10 +16,10 @@ struct ThumbnailView: View {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(PageGeometry.aspectRatio, contentMode: .fit)
+                    .aspectRatio(page.aspectRatio, contentMode: .fit)
             }
         }
-        .aspectRatio(PageGeometry.aspectRatio, contentMode: .fit)
+        .aspectRatio(page.aspectRatio, contentMode: .fit)
         .frame(maxWidth: maxWidth)
         .clipShape(RoundedRectangle(cornerRadius: Theme.pageCornerRadius))
         .overlay(

@@ -140,6 +140,17 @@ struct CanvasContainerView: UIViewRepresentable {
             controller.reloadAllPages = { [weak self] in
                 self?.pageViews.forEach { $0.reloadFromModel() }
             }
+            // After an orientation/layout change, resize every page and re-fit.
+            controller.relayoutPages = { [weak self] in
+                guard let self else { return }
+                for pv in pageViews {
+                    pv.applyCanvasSize()
+                    pv.reloadFromModel()
+                }
+                scrollView?.layoutIfNeeded()
+                didInitialFit = false   // force a fresh fit to the new page size
+                handleBoundsChange()
+            }
             // Undo/redo act on the canvas the user is currently viewing. Each
             // canvas owns its own UndoManager (see StrokeCanvasView), so this
             // reliably reverses the strokes drawn on that page.
@@ -225,13 +236,27 @@ struct CanvasContainerView: UIViewRepresentable {
 
         func fitToPageIfNeeded() { handleBoundsChange() }
 
-        /// The zoom scale that makes the page fill the editor's width.
+        /// The zoom scale used to auto-fit the page. Fills the width when the
+        /// page is taller than the viewport (portrait A4 scrolls); otherwise fits
+        /// a single page fully on screen (landscape pages / landscape device), so
+        /// the whole page is visible and centered instead of overflowing.
         private func fitWidthScale() -> CGFloat? {
             guard let scrollView, let pv = pageViews.first else { return nil }
             let bounds = scrollView.bounds.size
             guard bounds.width > 1, bounds.height > 1 else { return nil }
-            let sidePadding: CGFloat = 16 // 8pt leading + 8pt trailing
-            let scale = (bounds.width - sidePadding) / pv.page.canvasSize.width
+            let sidePadding: CGFloat = 16   // 8pt leading + 8pt trailing
+            let verticalPadding: CGFloat = 32
+
+            let page = pv.page
+            let pageWidth = page.canvasSize.width
+            // Height of a single page unit (ignore the extended "infinite" height).
+            let unitHeight = page.canvasSize.height / CGFloat(max(1, page.heightUnits))
+
+            let widthScale = (bounds.width - sidePadding) / pageWidth
+            let heightScale = (bounds.height - verticalPadding) / unitHeight
+            // Fit the whole page when it would otherwise be taller than the
+            // viewport once width-fitted (landscape page or landscape device).
+            let scale = min(widthScale, heightScale)
             return max(scrollView.minimumZoomScale, min(scrollView.maximumZoomScale, scale))
         }
 
@@ -312,10 +337,11 @@ struct CanvasContainerView: UIViewRepresentable {
         private func makePageView(_ page: Page) -> PageContainerView {
             let pv = PageContainerView(page: page)
             pv.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                pv.widthAnchor.constraint(equalToConstant: page.canvasSize.width),
-                pv.heightAnchor.constraint(equalToConstant: page.canvasSize.height)
-            ])
+            let widthC = pv.widthAnchor.constraint(equalToConstant: page.canvasSize.width)
+            let heightC = pv.heightAnchor.constraint(equalToConstant: page.canvasSize.height)
+            pv.widthConstraint = widthC
+            pv.heightConstraint = heightC
+            NSLayoutConstraint.activate([widthC, heightC])
             pv.canvas.delegate = self
             pageForCanvas[ObjectIdentifier(pv.canvas)] = page
 

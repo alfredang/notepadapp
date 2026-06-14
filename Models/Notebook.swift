@@ -23,6 +23,7 @@ final class Notebook {
     var paperStyleRaw: String = "white"
     var paperSurfaceRaw: String = ""
     var paperPatternRaw: String = ""
+    var paperLayoutRaw: String = ""
 
     var paperSurface: PaperSurface {
         get { PaperSurface(rawValue: paperSurfaceRaw) ?? PaperTemplateMigration.surface(forLegacy: paperStyleRaw) }
@@ -31,6 +32,10 @@ final class Notebook {
     var paperPattern: PaperPattern {
         get { PaperPattern(rawValue: paperPatternRaw) ?? PaperTemplateMigration.pattern(forLegacy: paperStyleRaw) }
         set { paperPatternRaw = newValue.rawValue }
+    }
+    var paperLayout: PaperLayout {
+        get { PaperLayout(rawValue: paperLayoutRaw) ?? .portrait }
+        set { paperLayoutRaw = newValue.rawValue }
     }
 
     /// Parent notebook for nesting (nil = top-level).

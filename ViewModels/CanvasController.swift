@@ -41,8 +41,13 @@ final class CanvasController {
     /// notebook-wide — used by the in-canvas toolbar's template control.
     var currentPaperSurface: () -> PaperSurface = { .whiteboard }
     var currentPaperPattern: () -> PaperPattern = { .blank }
+    var currentPaperLayout: () -> PaperLayout = { .portrait }
     var setPaperSurface: (PaperSurface) -> Void = { _ in }
     var setPaperPattern: (PaperPattern) -> Void = { _ in }
+    var setPaperLayout: (PaperLayout) -> Void = { _ in }
+    /// Resizes every on-screen page to its current canvas size and re-fits
+    /// (used after a layout/orientation change).
+    var relayoutPages: () -> Void = {}
     /// Refreshes page thumbnails after a destructive edit (e.g. clear).
     var refreshThumbnails: () -> Void = {}
 }

@@ -34,6 +34,11 @@ final class PageContainerView: UIView {
     private let backgroundImageView = UIImageView()
     private let footerLabel = UILabel()
 
+    /// Size constraints driving the page's footprint; updated when the page's
+    /// layout/orientation changes (see `applyCanvasSize`).
+    var widthConstraint: NSLayoutConstraint?
+    var heightConstraint: NSLayoutConstraint?
+
     private static let footerDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "d MMM yyyy, h:mm a"
@@ -121,6 +126,16 @@ final class PageContainerView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override var intrinsicContentSize: CGSize { page.canvasSize }
+
+    /// Resizes the page to its current `canvasSize` (after a layout/orientation
+    /// or height change). Subviews follow via autoresizing masks.
+    func applyCanvasSize() {
+        let size = page.canvasSize
+        widthConstraint?.constant = size.width
+        heightConstraint?.constant = size.height
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
+    }
 
     /// Reloads visual content from the model (after clear / external change).
     func reloadFromModel() {

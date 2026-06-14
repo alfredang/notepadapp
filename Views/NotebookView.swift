@@ -89,6 +89,11 @@ struct NotebookView: View {
                 notebookVM.setPattern(pattern)
                 controller.reloadAllPages()
             }
+            controller.currentPaperLayout = { notebookVM.paperLayout }
+            controller.setPaperLayout = { layout in
+                notebookVM.setLayout(layout)
+                controller.relayoutPages()
+            }
             controller.refreshThumbnails = { notebookVM.bump() }
             controller.deleteVisiblePage = {
                 if let p = controller.currentVisiblePage() { notebookVM.delete(p) }

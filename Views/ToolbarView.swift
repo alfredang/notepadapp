@@ -235,8 +235,10 @@ struct ToolbarView: View {
                 TemplatePalettePopover(
                     currentSurface: controller.currentPaperSurface(),
                     currentPattern: controller.currentPaperPattern(),
+                    currentLayout: controller.currentPaperLayout(),
                     onPickSurface: { controller.setPaperSurface($0) },
-                    onPickPattern: { controller.setPaperPattern($0) }
+                    onPickPattern: { controller.setPaperPattern($0) },
+                    onPickLayout: { controller.setPaperLayout($0) }
                 )
                 .presentationCompactAdaptation(.popover)
             }
@@ -385,25 +387,44 @@ private struct ShapePalettePopover: View {
 private struct TemplatePalettePopover: View {
     let currentSurface: PaperSurface
     let currentPattern: PaperPattern
+    let currentLayout: PaperLayout
     let onPickSurface: (PaperSurface) -> Void
     let onPickPattern: (PaperPattern) -> Void
+    let onPickLayout: (PaperLayout) -> Void
 
     @State private var surface: PaperSurface
     @State private var pattern: PaperPattern
+    @State private var layout: PaperLayout
 
-    init(currentSurface: PaperSurface, currentPattern: PaperPattern,
+    init(currentSurface: PaperSurface, currentPattern: PaperPattern, currentLayout: PaperLayout,
          onPickSurface: @escaping (PaperSurface) -> Void,
-         onPickPattern: @escaping (PaperPattern) -> Void) {
+         onPickPattern: @escaping (PaperPattern) -> Void,
+         onPickLayout: @escaping (PaperLayout) -> Void) {
         self.currentSurface = currentSurface
         self.currentPattern = currentPattern
+        self.currentLayout = currentLayout
         self.onPickSurface = onPickSurface
         self.onPickPattern = onPickPattern
+        self.onPickLayout = onPickLayout
         _surface = State(initialValue: currentSurface)
         _pattern = State(initialValue: currentPattern)
+        _layout = State(initialValue: currentLayout)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("LAYOUT")
+            Picker("Layout", selection: $layout) {
+                ForEach(PaperLayout.allCases) { l in
+                    Text(l.displayName).tag(l)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .onChange(of: layout) { _, newValue in onPickLayout(newValue) }
+
+            Divider().padding(.vertical, 4)
+
             sectionHeader("SURFACE")
             ForEach(PaperSurface.allCases) { s in
                 row(swatch: PaperSwatch(surface: s),
