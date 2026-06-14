@@ -71,18 +71,23 @@ struct NotebookView: View {
                 notebookVM.insertPage(after: i)
             }
             editorVM.allowsFingerDrawing = allowsFingerDrawing
-            // Default ink to the notebook's template so it's visible (white
+            // Default ink to the notebook's surface so it's visible (white
             // chalk on a blackboard, black on white paper).
-            let ink = notebookVM.paperStyle.defaultInkColor
+            let ink = notebookVM.paperSurface.defaultInkColor
             editorVM.penColor = ink
             editorVM.shapeStrokeColor = ink
             // Wire the in-toolbar template control + thumbnail refresh.
-            controller.currentPaperStyle = { notebookVM.paperStyle }
-            controller.setPaperStyle = { style in
-                notebookVM.setPaperStyle(style)
+            controller.currentPaperSurface = { notebookVM.paperSurface }
+            controller.currentPaperPattern = { notebookVM.paperPattern }
+            controller.setPaperSurface = { surface in
+                notebookVM.setSurface(surface)
                 controller.reloadAllPages()
-                editorVM.penColor = style.defaultInkColor
-                editorVM.shapeStrokeColor = style.defaultInkColor
+                editorVM.penColor = surface.defaultInkColor
+                editorVM.shapeStrokeColor = surface.defaultInkColor
+            }
+            controller.setPaperPattern = { pattern in
+                notebookVM.setPattern(pattern)
+                controller.reloadAllPages()
             }
             controller.refreshThumbnails = { notebookVM.bump() }
             controller.deleteVisiblePage = {

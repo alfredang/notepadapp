@@ -33,16 +33,17 @@ struct ShapeGlyph: View {
     }
 }
 
-/// A small preview tile of a paper template: its surface color plus a scaled-down
-/// hint of its ruled / gridded / dotted pattern.
+/// A small preview tile of a paper template: a surface color with a scaled-down
+/// hint of a ruled / gridded / dotted pattern drawn on top.
 struct PaperSwatch: View {
-    let style: PaperStyle
+    var surface: PaperSurface
+    var pattern: PaperPattern = .blank
     var size = CGSize(width: 44, height: 32)
 
     var body: some View {
         Canvas { ctx, canvasSize in
             let rect = CGRect(origin: .zero, size: canvasSize)
-            ctx.fill(Path(rect), with: .color(Color(PaperPattern.surfaceColor(for: style))))
+            ctx.fill(Path(rect), with: .color(Color(surface.uiColor)))
             drawPattern(in: &ctx, rect: rect)
         }
         .frame(width: size.width, height: size.height)
@@ -51,21 +52,24 @@ struct PaperSwatch: View {
     }
 
     private func drawPattern(in ctx: inout GraphicsContext, rect: CGRect) {
-        switch style {
+        let ink: Color = surface.isDark ? .white : .black
+        switch pattern {
+        case .blank:
+            break
         case .grid:
             var path = Path()
             var x = rect.minX + 7
             while x < rect.maxX { path.move(to: CGPoint(x: x, y: rect.minY)); path.addLine(to: CGPoint(x: x, y: rect.maxY)); x += 7 }
             var y = rect.minY + 7
             while y < rect.maxY { path.move(to: CGPoint(x: rect.minX, y: y)); path.addLine(to: CGPoint(x: rect.maxX, y: y)); y += 7 }
-            ctx.stroke(path, with: .color(.black.opacity(0.22)), lineWidth: 0.5)
+            ctx.stroke(path, with: .color(ink.opacity(0.28)), lineWidth: 0.5)
         case .dotted:
             var y = rect.minY + 7
             while y < rect.maxY {
                 var x = rect.minX + 7
                 while x < rect.maxX {
                     ctx.fill(Path(ellipseIn: CGRect(x: x - 0.8, y: y - 0.8, width: 1.6, height: 1.6)),
-                             with: .color(.black.opacity(0.35)))
+                             with: .color(ink.opacity(0.4)))
                     x += 7
                 }
                 y += 7
@@ -74,9 +78,8 @@ struct PaperSwatch: View {
             var path = Path()
             var y = rect.minY + 8
             while y < rect.maxY { path.move(to: CGPoint(x: rect.minX, y: y)); path.addLine(to: CGPoint(x: rect.maxX, y: y)); y += 8 }
-            ctx.stroke(path, with: .color(Color(red: 0.30, green: 0.45, blue: 0.85).opacity(0.5)), lineWidth: 0.5)
-        case .white, .blackboard:
-            break
+            let line: Color = surface.isDark ? .white.opacity(0.4) : Color(red: 0.30, green: 0.45, blue: 0.85).opacity(0.5)
+            ctx.stroke(path, with: .color(line), lineWidth: 0.5)
         }
     }
 }

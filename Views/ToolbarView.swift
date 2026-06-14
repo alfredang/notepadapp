@@ -233,11 +233,11 @@ struct ToolbarView: View {
             .accessibilityLabel("Page template")
             .popover(isPresented: $showTemplatePopover) {
                 TemplatePalettePopover(
-                    current: controller.currentPaperStyle()
-                ) { style in
-                    controller.setPaperStyle(style)
-                    showTemplatePopover = false
-                }
+                    currentSurface: controller.currentPaperSurface(),
+                    currentPattern: controller.currentPaperPattern(),
+                    onPickSurface: { controller.setPaperSurface($0) },
+                    onPickPattern: { controller.setPaperPattern($0) }
+                )
                 .presentationCompactAdaptation(.popover)
             }
 
@@ -380,42 +380,84 @@ private struct ShapePalettePopover: View {
     }
 }
 
-/// A titled list of paper templates: swatch + name, with the active one highlighted.
+/// Two-axis template chooser: a SURFACE color and a PATTERN overlay that
+/// combine. Selecting one keeps the popover open so both can be set.
 private struct TemplatePalettePopover: View {
-    let current: PaperStyle
-    let onPick: (PaperStyle) -> Void
+    let currentSurface: PaperSurface
+    let currentPattern: PaperPattern
+    let onPickSurface: (PaperSurface) -> Void
+    let onPickPattern: (PaperPattern) -> Void
+
+    @State private var surface: PaperSurface
+    @State private var pattern: PaperPattern
+
+    init(currentSurface: PaperSurface, currentPattern: PaperPattern,
+         onPickSurface: @escaping (PaperSurface) -> Void,
+         onPickPattern: @escaping (PaperPattern) -> Void) {
+        self.currentSurface = currentSurface
+        self.currentPattern = currentPattern
+        self.onPickSurface = onPickSurface
+        self.onPickPattern = onPickPattern
+        _surface = State(initialValue: currentSurface)
+        _pattern = State(initialValue: currentPattern)
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("TEMPLATE")
-                .font(.caption2.weight(.semibold))
-                .tracking(1.5)
-                .foregroundStyle(.secondary)
-            ForEach(PaperStyle.allCases) { style in
-                Button { onPick(style) } label: {
-                    HStack(spacing: 14) {
-                        PaperSwatch(style: style)
-                        Text(style.displayName)
-                            .font(.body)
-                            .foregroundStyle(current == style ? Color.accentColor : Color.primary)
-                        Spacer(minLength: 8)
-                    }
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(current == style ? Color.accentColor : Color.clear, lineWidth: 1.5)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(current == style ? Color.accentColor.opacity(0.12) : Color.clear)
-                            )
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader("SURFACE")
+            ForEach(PaperSurface.allCases) { s in
+                row(swatch: PaperSwatch(surface: s),
+                    title: s.displayName,
+                    selected: surface == s) {
+                    surface = s
+                    onPickSurface(s)
                 }
-                .buttonStyle(.plain)
-                .hoverEffect(.highlight)
+            }
+
+            Divider().padding(.vertical, 4)
+
+            sectionHeader("PATTERN")
+            ForEach(PaperPattern.allCases) { p in
+                row(swatch: PaperSwatch(surface: surface, pattern: p),
+                    title: p.displayName,
+                    selected: pattern == p) {
+                    pattern = p
+                    onPickPattern(p)
+                }
             }
         }
         .padding(16)
         .frame(width: 260)
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .tracking(1.5)
+            .foregroundStyle(.secondary)
+    }
+
+    private func row(swatch: PaperSwatch, title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                swatch
+                Text(title)
+                    .font(.body)
+                    .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                Spacer(minLength: 8)
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(selected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
     }
 }

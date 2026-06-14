@@ -34,28 +34,27 @@ final class NotebookViewModel {
     // MARK: - Page actions
 
     func addPageAtEnd() {
-        addPage(at: nil, style: pages.last?.paperStyle ?? notebook.paperStyle)
+        addPage(at: nil, like: pages.last)
         selectedPageIndex = pages.count - 1
     }
 
     func insertPage(before index: Int) {
-        let style = pages.indices.contains(index) ? pages[index].paperStyle : notebook.paperStyle
-        addPage(at: index, style: style)
+        addPage(at: index, like: pages.indices.contains(index) ? pages[index] : nil)
         selectedPageIndex = index
     }
 
     func insertPage(after index: Int) {
-        let style = pages.indices.contains(index) ? pages[index].paperStyle : notebook.paperStyle
-        addPage(at: index + 1, style: style)
+        addPage(at: index + 1, like: pages.indices.contains(index) ? pages[index] : nil)
         selectedPageIndex = min(index + 1, pages.count - 1)
     }
 
-    /// Adds a page at `index` (nil = end), inheriting the given template so a new
-    /// page always matches its neighbour (blackboard stays blackboard, etc.).
-    private func addPage(at index: Int?, style: PaperStyle) {
+    /// Adds a page at `index` (nil = end), inheriting the template from `like`
+    /// (or the notebook) so a new page always matches its neighbour.
+    private func addPage(at index: Int?, like neighbour: Page?) {
         do {
             let page = try repository.addPage(to: notebook, at: index)
-            page.paperStyle = style
+            page.paperSurface = neighbour?.paperSurface ?? notebook.paperSurface
+            page.paperPattern = neighbour?.paperPattern ?? notebook.paperPattern
             try repository.save()
             bump()
         } catch {
@@ -98,15 +97,15 @@ final class NotebookViewModel {
         }
     }
 
-    /// Switches the whole notebook's paper template and recolors existing ink &
-    /// shapes so they stay visible on the new surface (dark ink ⇄ white chalk).
-    func setPaperStyle(_ style: PaperStyle) {
-        notebook.paperStyle = style
+    /// Switches the whole notebook's surface and recolors existing ink & shapes
+    /// so they stay visible on the new surface (dark ink ⇄ white chalk).
+    func setSurface(_ surface: PaperSurface) {
+        notebook.paperSurface = surface
         let map: (UIColor) -> UIColor = { color in
-            style == .blackboard ? InkRecolor.forBlackboard(color) : InkRecolor.forWhitePaper(color)
+            surface.isDark ? InkRecolor.forBlackboard(color) : InkRecolor.forWhitePaper(color)
         }
         for page in pages {
-            page.paperStyle = style
+            page.paperSurface = surface
             page.drawingData = InkRecolor.recolorDrawing(page.drawingData, using: map)
             var items = page.items
             for i in items.indices {
@@ -119,8 +118,20 @@ final class NotebookViewModel {
         bump()
     }
 
+    /// Switches the whole notebook's ruled pattern (does not touch ink).
+    func setPattern(_ pattern: PaperPattern) {
+        notebook.paperPattern = pattern
+        for page in pages {
+            page.paperPattern = pattern
+            page.touch()
+        }
+        try? repository.save()
+        bump()
+    }
+
     /// The notebook's current template (the source of truth for new pages).
-    var paperStyle: PaperStyle { notebook.paperStyle }
+    var paperSurface: PaperSurface { notebook.paperSurface }
+    var paperPattern: PaperPattern { notebook.paperPattern }
 
     /// Deletes the pages with the given ids, always keeping at least one page.
     func deletePages(ids: Set<UUID>) {
@@ -189,8 +200,9 @@ final class NotebookViewModel {
         do {
             let page = try action()
             // New pages inherit the notebook's current template.
-            if page.paperStyle != paperStyle {
-                page.paperStyle = paperStyle
+            if page.paperSurface != paperSurface || page.paperPattern != paperPattern {
+                page.paperSurface = paperSurface
+                page.paperPattern = paperPattern
                 try? repository.save()
             }
             bump()

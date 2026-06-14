@@ -97,7 +97,8 @@ final class NotebookRepository: NotebookRepositoryProtocol {
                 pageIndex: page.pageIndex,
                 drawingData: page.drawingData,
                 shapesData: page.shapesData,
-                paperStyle: page.paperStyle,
+                surface: page.paperSurface,
+                pattern: page.paperPattern,
                 notebook: copy
             )
             context.insert(pageCopy)
@@ -173,7 +174,8 @@ final class PageRepository: PageRepositoryProtocol {
             pageIndex: insertIndex,
             drawingData: page.drawingData,
             shapesData: page.shapesData,
-            paperStyle: page.paperStyle,
+            surface: page.paperSurface,
+            pattern: page.paperPattern,
             notebook: notebook
         )
         context.insert(copy)

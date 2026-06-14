@@ -5,9 +5,9 @@ import AVFoundation
 /// Renders a page (PencilKit drawing + vector overlay) to a raster image.
 /// Used for thumbnails and PNG/JPG/PDF export.
 enum PageRenderer {
-    /// The fill color for a paper template (white paper vs. dark blackboard).
-    static func surfaceColor(for style: PaperStyle) -> UIColor {
-        PaperPattern.surfaceColor(for: style)
+    /// The fill color for a page's surface template.
+    static func surfaceColor(for page: Page) -> UIColor {
+        page.paperSurface.uiColor
     }
 
     /// Renders the page at the full A4 point size, scaled by `scale`. When
@@ -18,14 +18,14 @@ enum PageRenderer {
         format.scale = scale
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         return renderer.image { ctx in
-            (background ?? surfaceColor(for: page.paperStyle)).setFill()
+            (background ?? page.paperSurface.uiColor).setFill()
             ctx.fill(CGRect(origin: .zero, size: size))
 
             // Ruled / gridded / dotted template pattern, when no override fill.
             if background == nil {
-                PaperPattern.drawPattern(for: page.paperStyle,
-                                         in: CGRect(origin: .zero, size: size),
-                                         context: ctx.cgContext)
+                page.paperPattern.draw(in: CGRect(origin: .zero, size: size),
+                                       context: ctx.cgContext,
+                                       onDark: page.paperSurface.isDark)
             }
 
             // Imported background (e.g. a PDF page) sits beneath everything,

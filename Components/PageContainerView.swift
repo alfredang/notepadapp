@@ -61,8 +61,8 @@ final class PageContainerView: UIView {
         contentView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(contentView)
 
-        // Templated paper surface (solid color + grid / dotted / lined pattern).
-        paperBackground.style = page.paperStyle
+        // Templated paper surface (surface color + grid / dotted / lined pattern).
+        paperBackground.configure(surface: page.paperSurface, pattern: page.paperPattern)
         paperBackground.frame = contentView.bounds
         paperBackground.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         contentView.addSubview(paperBackground)
@@ -112,7 +112,7 @@ final class PageContainerView: UIView {
     func updateFooter() {
         let show = UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
         footerLabel.isHidden = !show
-        let onDark = page.paperStyle == .blackboard
+        let onDark = page.paperSurface.isDark
         footerLabel.textColor = (onDark ? UIColor.white : UIColor.black).withAlphaComponent(0.45)
         let date = PageContainerView.footerDateFormatter.string(from: page.updatedAt)
         footerLabel.text = "Page \(page.pageIndex + 1)  ·  \(date)"
@@ -134,7 +134,7 @@ final class PageContainerView: UIView {
         }
         overlay.items = page.items
         backgroundImageView.image = page.backgroundData.isEmpty ? nil : UIImage(data: page.backgroundData)
-        paperBackground.style = page.paperStyle
+        paperBackground.configure(surface: page.paperSurface, pattern: page.paperPattern)
         updateFooter()
     }
 

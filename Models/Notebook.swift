@@ -17,12 +17,20 @@ final class Notebook {
     /// Defaulted for CloudKit compatibility.
     var tags: [String] = []
 
-    /// The notebook's paper template; new pages inherit it. Stored as a raw
-    /// string for CloudKit compatibility.
-    var paperStyleRaw: String = PaperStyle.white.rawValue
-    var paperStyle: PaperStyle {
-        get { PaperStyle(rawValue: paperStyleRaw) ?? .white }
-        set { paperStyleRaw = newValue.rawValue }
+    /// The notebook's paper template; new pages inherit it. Stored as raw
+    /// strings for CloudKit compatibility. `paperStyleRaw` is the legacy
+    /// single-axis value, kept for migration.
+    var paperStyleRaw: String = "white"
+    var paperSurfaceRaw: String = ""
+    var paperPatternRaw: String = ""
+
+    var paperSurface: PaperSurface {
+        get { PaperSurface(rawValue: paperSurfaceRaw) ?? PaperTemplateMigration.surface(forLegacy: paperStyleRaw) }
+        set { paperSurfaceRaw = newValue.rawValue }
+    }
+    var paperPattern: PaperPattern {
+        get { PaperPattern(rawValue: paperPatternRaw) ?? PaperTemplateMigration.pattern(forLegacy: paperStyleRaw) }
+        set { paperPatternRaw = newValue.rawValue }
     }
 
     /// Parent notebook for nesting (nil = top-level).

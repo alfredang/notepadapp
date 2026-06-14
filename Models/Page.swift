@@ -2,23 +2,20 @@ import Foundation
 import SwiftData
 import CoreGraphics
 
-/// Visual template for a page's paper surface.
-enum PaperStyle: String, CaseIterable, Identifiable, Sendable {
-    case white
-    case blackboard
-    case grid
-    case dotted
-    case lined
+/// A page's background surface (color). Independent of the ruled `PaperPattern`
+/// drawn on top, so any surface can be combined with any pattern.
+enum PaperSurface: String, CaseIterable, Identifiable, Sendable {
+    case whiteboard
+    case paper          // warm cream
+    case blackboard     // dark chalkboard green
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .white: "Whiteboard"
+        case .whiteboard: "Whiteboard"
+        case .paper: "Paper"
         case .blackboard: "Blackboard"
-        case .grid: "Grid"
-        case .dotted: "Dotted"
-        case .lined: "Lined"
         }
     }
 
@@ -29,6 +26,25 @@ enum PaperStyle: String, CaseIterable, Identifiable, Sendable {
     /// (dark ink on light paper, white chalk on a blackboard).
     var defaultInkColor: RGBAColor {
         isDark ? RGBAColor(red: 1, green: 1, blue: 1) : .black
+    }
+}
+
+/// A ruled overlay drawn on top of the page surface.
+enum PaperPattern: String, CaseIterable, Identifiable, Sendable {
+    case blank
+    case lined
+    case dotted
+    case grid
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .blank: "Blank"
+        case .lined: "Lined"
+        case .dotted: "Dotted"
+        case .grid: "Grid"
+        }
     }
 }
 
@@ -61,9 +77,18 @@ final class Page {
     /// values give an extended, continuous ("infinite") vertical canvas.
     var heightUnits: Int = 1
 
-    /// The page's paper template (white paper vs. dark blackboard). Stored as a
-    /// raw string for CloudKit compatibility; read through `paperStyle`.
-    var paperStyleRaw: String = PaperStyle.white.rawValue
+    /// Legacy single-axis template string (e.g. "white", "blackboard", "grid").
+    /// Kept for CloudKit back-compat / migration; new code reads `paperSurface`
+    /// and `paperPattern`.
+    var paperStyleRaw: String = "white"
+
+    /// The page's background surface. Stored raw for CloudKit; empty ⇒ derive
+    /// from the legacy `paperStyleRaw`.
+    var paperSurfaceRaw: String = ""
+
+    /// The page's ruled overlay. Stored raw for CloudKit; empty ⇒ derive from
+    /// the legacy `paperStyleRaw`.
+    var paperPatternRaw: String = ""
 
     /// Owning notebook (inverse of `Notebook.pages`).
     var notebook: Notebook?
@@ -78,7 +103,8 @@ final class Page {
         recognizedText: String = "",
         backgroundData: Data = Data(),
         heightUnits: Int = 1,
-        paperStyle: PaperStyle = .white,
+        surface: PaperSurface = .whiteboard,
+        pattern: PaperPattern = .blank,
         notebook: Notebook? = nil
     ) {
         self.id = id
@@ -90,14 +116,21 @@ final class Page {
         self.recognizedText = recognizedText
         self.backgroundData = backgroundData
         self.heightUnits = heightUnits
-        self.paperStyleRaw = paperStyle.rawValue
+        self.paperSurfaceRaw = surface.rawValue
+        self.paperPatternRaw = pattern.rawValue
         self.notebook = notebook
     }
 
-    /// The page's paper template, derived from `paperStyleRaw`.
-    var paperStyle: PaperStyle {
-        get { PaperStyle(rawValue: paperStyleRaw) ?? .white }
-        set { paperStyleRaw = newValue.rawValue }
+    /// The page's background surface (migrating legacy templates on read).
+    var paperSurface: PaperSurface {
+        get { PaperSurface(rawValue: paperSurfaceRaw) ?? PaperTemplateMigration.surface(forLegacy: paperStyleRaw) }
+        set { paperSurfaceRaw = newValue.rawValue }
+    }
+
+    /// The page's ruled overlay pattern (migrating legacy templates on read).
+    var paperPattern: PaperPattern {
+        get { PaperPattern(rawValue: paperPatternRaw) ?? PaperTemplateMigration.pattern(forLegacy: paperStyleRaw) }
+        set { paperPatternRaw = newValue.rawValue }
     }
 
     /// The page's canvas size in points — A4 width, height scaled by `heightUnits`.
@@ -119,5 +152,22 @@ final class Page {
     func touch(_ date: Date = .now) {
         updatedAt = date
         notebook?.touch(date)
+    }
+}
+
+/// Maps the old single-axis template strings onto the new surface + pattern
+/// axes so pages created before the split keep their appearance.
+enum PaperTemplateMigration {
+    static func surface(forLegacy raw: String) -> PaperSurface {
+        raw == "blackboard" ? .blackboard : .whiteboard
+    }
+
+    static func pattern(forLegacy raw: String) -> PaperPattern {
+        switch raw {
+        case "grid": .grid
+        case "dotted": .dotted
+        case "lined": .lined
+        default: .blank
+        }
     }
 }
