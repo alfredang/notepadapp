@@ -11,7 +11,13 @@ final class ShapeOverlayView: UIView {
 
     /// Active tool; controls touch behavior.
     var tool: EditorTool = .pen {
-        didSet { isUserInteractionEnabled = tool.isOverlayTool; if !tool.isOverlayTool { selectedID = nil } }
+        didSet {
+            // Overlay tools draw/select; erasers intercept touches that land on a
+            // vector shape so they can delete it (otherwise the eraser only reaches
+            // the handwriting layer beneath the overlay).
+            isUserInteractionEnabled = tool.isOverlayTool || tool.isEraser
+            if !tool.isOverlayTool { selectedID = nil }
+        }
     }
 
     /// Builds a styled item for the current tool settings.
@@ -44,7 +50,7 @@ final class ShapeOverlayView: UIView {
     // Interaction state
     private var draft: CanvasItem?
     private var dragStart: CGPoint = .zero
-    private enum DragMode { case none, create, move, moveInk, resize(handle: Int), lasso }
+    private enum DragMode { case none, create, move, moveInk, resize(handle: Int), lasso, erase }
     private var dragMode: DragMode = .none
     private var movingItemOriginalFrame: CGRect = .zero
     private var lassoPoints: [CGPoint] = []
@@ -126,6 +132,11 @@ final class ShapeOverlayView: UIView {
         case .shape, .flowchart:
             if isFinger && !allowsFingerDrawing { return false }
             return super.point(inside: point, with: event)
+        case .eraserPixel, .eraserObject:
+            // Erase whole vector shapes on contact. Empty space falls through so
+            // the PencilKit canvas still erases handwriting; a finger keeps panning.
+            if isFinger && !allowsFingerDrawing { return false }
+            return items.contains { hitTest($0, point: point) }
         default:
             return false
         }
@@ -238,6 +249,9 @@ final class ShapeOverlayView: UIView {
             draft = makeItem(kind, CGRect(origin: point, size: .zero), point, point)
         case .selection:
             beginSelectionTouch(at: point)
+        case .eraserPixel, .eraserObject:
+            dragMode = .erase
+            eraseItem(at: point)
         default:
             break
         }
@@ -262,6 +276,8 @@ final class ShapeOverlayView: UIView {
             resizeSelected(handle: handle, to: point)
         case .lasso:
             lassoPoints.append(point)
+        case .erase:
+            eraseItem(at: point)
         case .none:
             break
         }
@@ -288,6 +304,8 @@ final class ShapeOverlayView: UIView {
             break   // strokes were moved + persisted live via the ink bridge
         case .lasso:
             finishLasso()
+        case .erase:
+            break   // each touched shape was removed + persisted live in eraseItem
         case .none:
             break
         }
@@ -559,6 +577,16 @@ final class ShapeOverlayView: UIView {
             return distance(point, segment: (item.start, item.end)) < 14
         }
         return item.frame.insetBy(dx: -8, dy: -8).contains(point)
+    }
+
+    /// Removes the topmost vector item under `point` (and any flowchart
+    /// connectors bound to it). Drives the eraser tools, which otherwise only
+    /// affect the PencilKit handwriting layer beneath the overlay.
+    private func eraseItem(at point: CGPoint) {
+        guard let hit = items.last(where: { hitTest($0, point: point) }) else { return }
+        items.removeAll { $0.id == hit.id || $0.sourceItemID == hit.id || $0.targetItemID == hit.id }
+        onChange(items)
+        setNeedsDisplay()
     }
 
     private func moveSelected(by delta: CGPoint) {
