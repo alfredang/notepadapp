@@ -23,3 +23,7 @@ build/
 .env
 *.p8
 .appstoreconnect/
+
+# Tooling / scratch
+.playwright-mcp/
+signin.png
