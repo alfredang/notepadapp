@@ -100,6 +100,9 @@ final class PageContainerView: UIView {
         overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlay.items = page.items
         overlay.isUserInteractionEnabled = false
+        // Share the canvas's undo manager so shape edits and handwriting strokes
+        // undo/redo on a single, time-ordered stack.
+        overlay.shapeUndoManager = canvas.undoManager
         contentView.addSubview(overlay)
 
         // Page number + date/time stamp, bottom-right.

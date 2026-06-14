@@ -16,7 +16,7 @@ final class ShapeOverlayView: UIView {
             // vector shape so they can delete it (otherwise the eraser only reaches
             // the handwriting layer beneath the overlay).
             isUserInteractionEnabled = tool.isOverlayTool || tool.isEraser
-            if !tool.isOverlayTool { selectedID = nil }
+            if !tool.isOverlayTool { selectedIDs.removeAll() }
         }
     }
 
@@ -41,7 +41,25 @@ final class ShapeOverlayView: UIView {
     var deleteSelectedInk: () -> Void = {}
     var clearInkSelection: () -> Void = {}
 
-    private(set) var selectedID: UUID?
+    /// Currently selected overlay items. A single id → resize handles + move;
+    /// several (via lasso) → group move / delete / recolor.
+    private(set) var selectedIDs: Set<UUID> = []
+    /// The lone selected item's id when exactly one is selected (handles, resize,
+    /// tap-to-edit). Nil for an empty or multi-selection.
+    private var singleSelectedID: UUID? { selectedIDs.count == 1 ? selectedIDs.first : nil }
+
+    /// Undo manager shared with this page's PencilKit canvas, so shape edits and
+    /// handwriting interleave on one timeline (set by `PageContainerView`).
+    weak var shapeUndoManager: UndoManager?
+    /// `items` snapshot captured at the start of a gesture (move / resize / erase
+    /// / text edit), registered as a single undo step when the gesture commits.
+    private var gestureUndoSnapshot: [CanvasItem]?
+    /// Per-item geometry captured at the start of a group move.
+    private var moveOriginals: [UUID: CanvasItem] = [:]
+    /// `items` snapshot captured when inline text editing begins, so the whole
+    /// edit (text + any fill change) collapses into one undo step.
+    private var textUndoSnapshot: [CanvasItem]?
+
     /// Bounding box of a lasso-selected ink group (nil when none).
     private var inkSelectionRect: CGRect?
     private var inkSelected: Bool { inkSelectionRect != nil }
@@ -92,7 +110,7 @@ final class ShapeOverlayView: UIView {
         let point = gesture.location(in: self)
         guard let item = items.last(where: { hitTest($0, point: point) }) else { return }
         clearInkSelectionState()
-        selectedID = item.id
+        selectedIDs = [item.id]
         dragMode = .none
         setNeedsDisplay()
         presentEditMenu(at: CGPoint(x: item.frame.midX, y: item.frame.minY - 8))
@@ -142,26 +160,56 @@ final class ShapeOverlayView: UIView {
         }
     }
 
-    /// Recolors the currently selected item's stroke (and fill if it has one).
+    /// Recolors every selected item's stroke (and fill if it has one).
     func setSelectedColor(_ color: RGBAColor) {
-        guard let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        items[idx].strokeColor = color
-        if items[idx].fillColor.alpha > 0 { items[idx].fillColor = color }
+        guard !selectedIDs.isEmpty else { return }
+        let before = items
+        for i in items.indices where selectedIDs.contains(items[i].id) {
+            items[i].strokeColor = color
+            if items[i].fillColor.alpha > 0 { items[i].fillColor = color }
+        }
+        commitChange(from: before)
+    }
+
+    /// Sets the background (fill) of the selected labelled items and picks a
+    /// readable text/border color (dark on light fills, light on dark fills).
+    func setSelectedFill(_ color: RGBAColor) {
+        guard !selectedIDs.isEmpty else { return }
+        let before = items
+        let lum = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
+        let stroke: RGBAColor = lum > 0.6
+            ? RGBAColor(red: 0.12, green: 0.12, blue: 0.12)
+            : RGBAColor(red: 1, green: 1, blue: 1)
+        for i in items.indices where selectedIDs.contains(items[i].id) {
+            items[i].fillColor = color
+            items[i].strokeColor = stroke
+        }
+        commitChange(from: before)
+    }
+
+    // MARK: - Undo support
+
+    /// Records the change from `before` to the current `items` as one undo step
+    /// (on the shared page undo manager), then persists.
+    private func commitChange(from before: [CanvasItem]) {
+        if before != items { registerUndo(previous: before) }
         onChange(items)
         setNeedsDisplay()
     }
 
-    /// Sets the background (fill) of the selected labelled item and picks a
-    /// readable text/border color (dark on light fills, light on dark fills).
-    func setSelectedFill(_ color: RGBAColor) {
-        guard let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        let lum = 0.299 * color.red + 0.587 * color.green + 0.114 * color.blue
-        items[idx].fillColor = color
-        items[idx].strokeColor = lum > 0.6
-            ? RGBAColor(red: 0.12, green: 0.12, blue: 0.12)
-            : RGBAColor(red: 1, green: 1, blue: 1)
-        onChange(items)
-        setNeedsDisplay()
+    /// Registers a snapshot-restoring undo (and its mirror redo) on the shared
+    /// undo manager so shape edits reverse alongside handwriting strokes.
+    private func registerUndo(previous: [CanvasItem]) {
+        guard let um = shapeUndoManager else { return }
+        um.registerUndo(withTarget: self) { target in
+            let redoSnapshot = target.items
+            target.items = previous
+            target.selectedIDs.removeAll()
+            target.clearInkSelectionState()
+            target.onChange(target.items)
+            target.setNeedsDisplay()
+            target.registerUndo(previous: redoSnapshot)
+        }
     }
 
     // MARK: - Rendering
@@ -172,8 +220,12 @@ final class ShapeOverlayView: UIView {
         if let draft { renderItems.append(draft) }
         PageRenderer.drawOverlay(items: renderItems, in: ctx)
 
-        if let selected = items.first(where: { $0.id == selectedID }) {
+        if let id = singleSelectedID, let selected = items.first(where: { $0.id == id }) {
             drawSelection(for: selected, in: ctx)
+        } else if selectedIDs.count > 1 {
+            for item in items where selectedIDs.contains(item.id) {
+                drawGroupSelection(box: itemBounds(item), in: ctx)
+            }
         }
 
         // Dashed box around a lasso-selected handwriting group.
@@ -197,6 +249,25 @@ final class ShapeOverlayView: UIView {
             ctx.strokePath()
             ctx.restoreGState()
         }
+    }
+
+    /// Dashed outline (no handles) for one member of a multi-selection.
+    private func drawGroupSelection(box: CGRect, in ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setStrokeColor(UIColor.systemBlue.cgColor)
+        ctx.setLineWidth(1)
+        ctx.setLineDash(phase: 0, lengths: [4, 3])
+        ctx.stroke(box.insetBy(dx: -4, dy: -4))
+        ctx.restoreGState()
+    }
+
+    /// Tight bounding box of an item (handles line-like items whose `frame` is zero).
+    private func itemBounds(_ item: CanvasItem) -> CGRect {
+        if item.kind.isLineLike {
+            return CGRect(x: min(item.start.x, item.end.x), y: min(item.start.y, item.end.y),
+                          width: abs(item.end.x - item.start.x), height: abs(item.end.y - item.start.y))
+        }
+        return item.frame
     }
 
     private func drawSelection(for item: CanvasItem, in ctx: CGContext) {
@@ -251,6 +322,7 @@ final class ShapeOverlayView: UIView {
             beginSelectionTouch(at: point)
         case .eraserPixel, .eraserObject:
             dragMode = .erase
+            gestureUndoSnapshot = items
             eraseItem(at: point)
         default:
             break
@@ -290,10 +362,13 @@ final class ShapeOverlayView: UIView {
             commitDraft()
         case .move, .resize:
             rerouteConnectors()
+            if didMove, let before = gestureUndoSnapshot { registerUndo(previous: before) }
             onChange(items)
-            // A tap (no drag) on an item: labelled items open their text editor;
-            // other shapes show the edit menu (delete / color / duplicate).
-            if !didMove, let sel = items.first(where: { $0.id == selectedID }) {
+            moveOriginals = [:]
+            gestureUndoSnapshot = nil
+            // A tap (no drag) on a single item: labelled items open their text
+            // editor; other shapes show the edit menu (delete / color / duplicate).
+            if !didMove, let id = singleSelectedID, let sel = items.first(where: { $0.id == id }) {
                 if sel.kind.hasLabel {
                     beginTextEditing(for: sel.id)
                 } else {
@@ -305,7 +380,10 @@ final class ShapeOverlayView: UIView {
         case .lasso:
             finishLasso()
         case .erase:
-            break   // each touched shape was removed + persisted live in eraseItem
+            // Items were removed + persisted live in eraseItem; record one undo
+            // step for the whole erase stroke.
+            if let before = gestureUndoSnapshot, before != items { registerUndo(previous: before) }
+            gestureUndoSnapshot = nil
         case .none:
             break
         }
@@ -342,6 +420,7 @@ final class ShapeOverlayView: UIView {
 
     private func commitDraft() {
         guard var d = draft else { return }
+        let before = items
         // Discard tiny accidental taps.
         let minimal: CGFloat = 8
         if d.kind.isLineLike {
@@ -359,8 +438,8 @@ final class ShapeOverlayView: UIView {
             d.frame = CGRect(x: dragStart.x, y: dragStart.y, width: size.width, height: size.height)
         }
         items.append(d)
-        selectedID = d.id
-        onChange(items)
+        selectedIDs = [d.id]
+        commitChange(from: before)
 
         // After placing a sticky note, leave create-mode and open its editor so
         // the user can type immediately with the keyboard.
@@ -397,6 +476,7 @@ final class ShapeOverlayView: UIView {
     /// so the user types directly into the note (no popup dialog).
     func beginTextEditing(for id: UUID) {
         guard let item = items.first(where: { $0.id == id }) else { return }
+        textUndoSnapshot = items
         activeTextView?.resignFirstResponder()
 
         let hasFill = item.fillColor.alpha > 0
@@ -490,11 +570,12 @@ final class ShapeOverlayView: UIView {
     // MARK: - Selection
 
     private func beginSelectionTouch(at point: CGPoint) {
-        // Resize handle of currently selected item?
-        if let selected = items.first(where: { $0.id == selectedID }) {
+        // Resize handle of a single selected item?
+        if let id = singleSelectedID, let selected = items.first(where: { $0.id == id }) {
             for (i, handle) in handleRects(for: selected).enumerated() where handle.contains(point) {
                 dragMode = .resize(handle: i)
                 movingItemOriginalFrame = selected.frame
+                gestureUndoSnapshot = items
                 return
             }
         }
@@ -504,16 +585,20 @@ final class ShapeOverlayView: UIView {
             lastDragPoint = point
             return
         }
-        // Hit-test items top-down.
+        // Hit-test items top-down. Tapping a member of a multi-selection keeps the
+        // group (drag moves them all); tapping elsewhere selects just that item.
         if let hit = items.last(where: { hitTest($0, point: point) }) {
             clearInkSelectionState()
-            selectedID = hit.id
+            if !selectedIDs.contains(hit.id) { selectedIDs = [hit.id] }
+            moveOriginals = Dictionary(uniqueKeysWithValues:
+                items.filter { selectedIDs.contains($0.id) }.map { ($0.id, $0) })
             movingItemOriginalFrame = hit.frame
+            gestureUndoSnapshot = items
             dragMode = .move
         } else {
-            // Empty space: begin a lasso loop (selects a shape, or failing that the
+            // Empty space: begin a lasso loop (selects shapes, or failing that the
             // handwriting strokes it encloses).
-            selectedID = nil
+            selectedIDs.removeAll()
             clearInkSelectionState()
             lassoPoints = [point]
             dragMode = .lasso
@@ -533,13 +618,17 @@ final class ShapeOverlayView: UIView {
         defer { lassoPoints = [] }
         guard lassoPoints.count > 2 else { return }
         let poly = lassoPoints
-        // Prefer a fully enclosed shape; otherwise select the handwriting ink.
-        if let hit = items.last(where: { enclosed($0, in: poly) }) {
-            selectedID = hit.id
-            presentEditMenu(at: CGPoint(x: hit.frame.midX, y: hit.frame.minY - 8))
+        // Select every enclosed shape (works for overlapping shapes); otherwise
+        // fall back to selecting the handwriting ink the loop encloses.
+        let hits = items.filter { enclosed($0, in: poly) }
+        if !hits.isEmpty {
+            selectedIDs = Set(hits.map { $0.id })
+            let box = hits.reduce(CGRect.null) { $0.union(itemBounds($1)) }
+            setNeedsDisplay()
+            presentEditMenu(at: CGPoint(x: box.midX, y: box.minY - 8))
             return
         }
-        selectedID = nil
+        selectedIDs.removeAll()
         if let rect = selectInk(poly) {
             inkSelectionRect = rect
             setNeedsDisplay()
@@ -583,25 +672,32 @@ final class ShapeOverlayView: UIView {
     /// connectors bound to it). Drives the eraser tools, which otherwise only
     /// affect the PencilKit handwriting layer beneath the overlay.
     private func eraseItem(at point: CGPoint) {
-        guard let hit = items.last(where: { hitTest($0, point: point) }) else { return }
-        items.removeAll { $0.id == hit.id || $0.sourceItemID == hit.id || $0.targetItemID == hit.id }
+        // Remove every item under the point (not just the topmost) so the eraser
+        // clears overlapping shapes, plus any connector bound to a removed node.
+        let hitIDs = Set(items.filter { hitTest($0, point: point) }.map { $0.id })
+        guard !hitIDs.isEmpty else { return }
+        items.removeAll { hitIDs.contains($0.id)
+            || ($0.sourceItemID.map(hitIDs.contains) ?? false)
+            || ($0.targetItemID.map(hitIDs.contains) ?? false) }
         onChange(items)
         setNeedsDisplay()
     }
 
     private func moveSelected(by delta: CGPoint) {
-        guard let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        if items[idx].kind.isLineLike {
-            items[idx].start = CGPoint(x: items[idx].start.x + delta.x, y: items[idx].start.y + delta.y)
-            items[idx].end = CGPoint(x: items[idx].end.x + delta.x, y: items[idx].end.y + delta.y)
-        } else {
-            items[idx].frame = movingItemOriginalFrame.offsetBy(dx: delta.x, dy: delta.y)
+        for i in items.indices {
+            guard let original = moveOriginals[items[i].id] else { continue }
+            if items[i].kind.isLineLike {
+                items[i].start = CGPoint(x: original.start.x + delta.x, y: original.start.y + delta.y)
+                items[i].end = CGPoint(x: original.end.x + delta.x, y: original.end.y + delta.y)
+            } else {
+                items[i].frame = original.frame.offsetBy(dx: delta.x, dy: delta.y)
+            }
         }
         rerouteConnectors()
     }
 
     private func resizeSelected(handle: Int, to point: CGPoint) {
-        guard let id = selectedID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        guard let id = singleSelectedID, let idx = items.firstIndex(where: { $0.id == id }) else { return }
         if items[idx].kind.isLineLike {
             if handle == 0 { items[idx].start = point } else { items[idx].end = point }
         } else {
@@ -620,28 +716,36 @@ final class ShapeOverlayView: UIView {
     // MARK: - Public selection actions
 
     func deleteSelected() {
-        guard let id = selectedID else { return }
-        items.removeAll { $0.id == id || $0.sourceItemID == id || $0.targetItemID == id }
-        selectedID = nil
-        onChange(items)
-        setNeedsDisplay()
+        guard !selectedIDs.isEmpty else { return }
+        let before = items
+        let ids = selectedIDs
+        // Remove the selected items plus any connector bound to one of them.
+        items.removeAll { ids.contains($0.id)
+            || ($0.sourceItemID.map(ids.contains) ?? false)
+            || ($0.targetItemID.map(ids.contains) ?? false) }
+        selectedIDs.removeAll()
+        commitChange(from: before)
     }
 
     func duplicateSelected() {
-        guard let id = selectedID, let item = items.first(where: { $0.id == id }) else { return }
-        var copy = item
-        copy.id = UUID()
-        copy.frame = item.frame.offsetBy(dx: 24, dy: 24)
-        if item.kind.isLineLike {
-            copy.start = CGPoint(x: item.start.x + 24, y: item.start.y + 24)
-            copy.end = CGPoint(x: item.end.x + 24, y: item.end.y + 24)
+        guard !selectedIDs.isEmpty else { return }
+        let before = items
+        var newIDs = Set<UUID>()
+        for item in items where selectedIDs.contains(item.id) {
+            var copy = item
+            copy.id = UUID()
+            copy.frame = item.frame.offsetBy(dx: 24, dy: 24)
+            if item.kind.isLineLike {
+                copy.start = CGPoint(x: item.start.x + 24, y: item.start.y + 24)
+                copy.end = CGPoint(x: item.end.x + 24, y: item.end.y + 24)
+            }
+            copy.sourceItemID = nil
+            copy.targetItemID = nil
+            items.append(copy)
+            newIDs.insert(copy.id)
         }
-        copy.sourceItemID = nil
-        copy.targetItemID = nil
-        items.append(copy)
-        selectedID = copy.id
-        onChange(items)
-        setNeedsDisplay()
+        selectedIDs = newIDs
+        commitChange(from: before)
     }
 
     // MARK: - Flowchart connector routing
@@ -697,8 +801,10 @@ extension ShapeOverlayView: UITextViewDelegate {
     func textViewDidEndEditing(_ textView: UITextView) {
         if let id = editingItemID, let idx = items.firstIndex(where: { $0.id == id }) {
             items[idx].text = textView.text
+            if let before = textUndoSnapshot, before != items { registerUndo(previous: before) }
             onChange(items)
         }
+        textUndoSnapshot = nil
         textView.removeFromSuperview()
         activeTextView = nil
         editingItemID = nil
@@ -713,7 +819,7 @@ extension ShapeOverlayView: UIEditMenuInteractionDelegate {
                              menuFor configuration: UIEditMenuConfiguration,
                              suggestedActions: [UIMenuElement]) -> UIMenu? {
         // Handwriting (ink) selection: recolor or delete the lasso group.
-        if selectedID == nil, inkSelectionRect != nil {
+        if selectedIDs.isEmpty, inkSelectionRect != nil {
             let colorActions = ToolDefaults.extendedPalette.map { color in
                 UIAction(title: "", image: ShapeOverlayView.swatch(color.uiColor)) { [weak self] _ in
                     self?.recolorSelectedInk(color)
@@ -736,14 +842,16 @@ extension ShapeOverlayView: UIEditMenuInteractionDelegate {
                 self?.clearInkSelectionState()
                 self?.setNeedsDisplay()
             }
-            return UIMenu(children: [palette, custom, delete])
+            return UIMenu(children: [delete, palette, custom])
         }
 
-        guard let id = selectedID else { return nil }
+        guard !selectedIDs.isEmpty else { return nil }
 
-        // Sticky notes / flowchart nodes recolor their *background* (fill) with a
-        // readable text color; plain shapes recolor their stroke/outline.
-        let labelled = items.first { $0.id == id }?.kind.hasLabel ?? false
+        // A single sticky note / flowchart node recolors its *background* (fill)
+        // with a readable text color; plain shapes (and multi-selections) recolor
+        // their stroke/outline.
+        let labelled = singleSelectedID
+            .flatMap { id in items.first { $0.id == id }?.kind.hasLabel } ?? false
         let apply: (RGBAColor) -> Void = labelled
             ? { [weak self] c in self?.setSelectedFill(c) }
             : { [weak self] c in self?.setSelectedColor(c) }
@@ -769,7 +877,7 @@ extension ShapeOverlayView: UIEditMenuInteractionDelegate {
                               attributes: .destructive) { [weak self] _ in
             self?.deleteSelected()
         }
-        return UIMenu(children: [duplicate, palette, custom, delete])
+        return UIMenu(children: [delete, duplicate, palette, custom])
     }
 
     /// A small filled-circle image used as a color menu swatch (with a hairline

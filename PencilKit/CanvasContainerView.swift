@@ -126,13 +126,13 @@ struct CanvasContainerView: UIViewRepresentable {
 
         private func wireController() {
             controller.deleteSelection = { [weak self] in
-                self?.pageViews.first { $0.overlay.selectedID != nil }?.overlay.deleteSelected()
+                self?.pageViews.first { !$0.overlay.selectedIDs.isEmpty }?.overlay.deleteSelected()
             }
             controller.duplicateSelection = { [weak self] in
-                self?.pageViews.first { $0.overlay.selectedID != nil }?.overlay.duplicateSelected()
+                self?.pageViews.first { !$0.overlay.selectedIDs.isEmpty }?.overlay.duplicateSelected()
             }
             controller.hasSelection = { [weak self] in
-                self?.pageViews.contains { $0.overlay.selectedID != nil } ?? false
+                self?.pageViews.contains { !$0.overlay.selectedIDs.isEmpty } ?? false
             }
             controller.reload = { [weak self] page in
                 self?.pageViews.first { $0.page.id == page.id }?.reloadFromModel()
@@ -186,7 +186,7 @@ struct CanvasContainerView: UIViewRepresentable {
             controller.clearAllPages = { [weak self] in self?.clearAllPages() }
             controller.applyTool = { [weak self] in self?.applyTool() }
             controller.setSelectedColor = { [weak self] color in
-                self?.pageViews.first { $0.overlay.selectedID != nil }?.overlay.setSelectedColor(color)
+                self?.pageViews.first { !$0.overlay.selectedIDs.isEmpty }?.overlay.setSelectedColor(color)
             }
         }
 
