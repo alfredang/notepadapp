@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 
 /// Interactive vector overlay drawn above a page's PencilKit canvas.
 /// Handles shape/flowchart creation and selection (move/resize), and renders
@@ -44,6 +45,11 @@ final class ShapeOverlayView: UIView {
     /// recolor / delete) join the shared undo timeline alongside shape edits.
     var snapshotInk: () -> Data? = { nil }
     var restoreInk: (Data) -> Void = { _ in }
+    /// Serializes the selected ink strokes for copy / cut (nil when none selected).
+    var copySelectedInkData: () -> Data? = { nil }
+    /// Pastes encoded ink strokes — centered on the point when given, else nudged —
+    /// selects them, and returns their bounding box.
+    var pasteInkData: (Data, CGPoint?) -> CGRect? = { _, _ in nil }
 
     /// Currently selected overlay items. A single id → resize handles + move;
     /// several (via lasso) → group move / delete / recolor.
@@ -85,14 +91,20 @@ final class ShapeOverlayView: UIView {
 
     private let handleSize: CGFloat = 22
     private var didMove = false
-    private lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
+    /// The currently presented selection edit popover, so it can be dismissed.
+    private weak var editPopover: UIViewController?
 
     /// Applies a color picked from the system color wheel to the active selection.
     private var pendingColorApply: ((RGBAColor) -> Void)?
 
     /// Vector shapes copied/cut from a selection. Static so a copy on one page can
-    /// paste onto another. Ink isn't copied (only shapes, like duplicate).
+    /// paste onto another.
     private static var clipboard: [CanvasItem] = []
+    /// Handwriting (ink) strokes copied/cut from a lasso selection, serialized as a
+    /// PKDrawing. Static so a copy on one page can paste onto another.
+    private static var inkClipboard: Data?
+    /// Whether either clipboard holds something to paste.
+    private static var clipboardHasContent: Bool { !clipboard.isEmpty || inkClipboard != nil }
     /// Canvas point a long-press landed on empty space, used to anchor a paste.
     private var pasteAnchor: CGPoint?
 
@@ -106,7 +118,6 @@ final class ShapeOverlayView: UIView {
         backgroundColor = .clear
         isOpaque = false
         contentMode = .redraw
-        addInteraction(editMenuInteraction)
 
         // Double-tap a labelled item (sticky note / flowchart node) to edit its text.
         let doubleTap = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap(_:)))
@@ -126,7 +137,7 @@ final class ShapeOverlayView: UIView {
         let point = gesture.location(in: self)
         guard let item = items.last(where: { hitTest($0, point: point) }) else {
             // Long-press on empty canvas → Paste menu when the clipboard has items.
-            guard !ShapeOverlayView.clipboard.isEmpty else { return }
+            guard ShapeOverlayView.clipboardHasContent else { return }
             clearInkSelectionState()
             selectedIDs.removeAll()
             setNeedsDisplay()
@@ -141,10 +152,67 @@ final class ShapeOverlayView: UIView {
         presentEditMenu(at: CGPoint(x: item.frame.midX, y: item.frame.minY - 8))
     }
 
-    /// Shows a popup (delete / duplicate / change color) next to a selection.
+    /// Shows a popover anchored at `point` with the selection's actions
+    /// (delete / copy / cut) and a non-scrolling color grid that matches the
+    /// toolbar's color palette. On an empty-canvas long-press it offers Paste.
     private func presentEditMenu(at point: CGPoint) {
-        let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
-        editMenuInteraction.presentEditMenu(with: config)
+        guard let vc = nearestViewController() else { return }
+        let hasShapes = !selectedIDs.isEmpty
+        let hasInk = inkSelectionRect != nil
+
+        let menu: SelectionEditMenu
+        if !hasShapes && !hasInk {
+            // Nothing selected: offer Paste on an empty-canvas long-press.
+            guard ShapeOverlayView.clipboardHasContent else { return }
+            let anchor = pasteAnchor
+            menu = SelectionEditMenu(
+                mode: .paste,
+                currentColor: nil,
+                onDelete: {}, onCopy: {}, onCut: {},
+                onColor: { _ in }, onCustomColor: {},
+                onPaste: { [weak self] in self?.pasteClipboard(at: anchor) },
+                dismiss: { [weak self] in self?.editPopover?.dismiss(animated: true) })
+        } else {
+            // A lone sticky note / flowchart node recolors its *background* (fill);
+            // everything else (plain shapes, multi-selections, ink) recolors stroke/ink.
+            let labelled = !hasInk && (singleSelectedID
+                .flatMap { id in items.first { $0.id == id }?.kind.hasLabel } ?? false)
+            let apply: (RGBAColor) -> Void = labelled
+                ? { [weak self] c in self?.setSelectedFill(c) }
+                : { [weak self] c in self?.setSelectedColor(c) }
+            // Pre-highlight the current color when a single shape is selected.
+            let current: RGBAColor? = singleSelectedID.flatMap { id in
+                items.first { $0.id == id }.map { labelled ? $0.fillColor : $0.strokeColor }
+            }
+            menu = SelectionEditMenu(
+                // Copy / cut work for vector shapes and handwriting ink alike.
+                mode: .selection(showCopyCut: hasShapes || hasInk,
+                                 title: labelled ? "Background Color" : "Color"),
+                currentColor: current,
+                onDelete: { [weak self] in self?.deleteSelected() },
+                onCopy: { [weak self] in self?.copySelected() },
+                onCut: { [weak self] in self?.cutSelected() },
+                onColor: { c in apply(c) },
+                onCustomColor: { [weak self] in
+                    self?.editPopover?.dismiss(animated: true)
+                    self?.presentCustomColorPicker(current: current?.uiColor ?? .black) { c in apply(c) }
+                },
+                onPaste: {},
+                dismiss: { [weak self] in self?.editPopover?.dismiss(animated: true) })
+        }
+
+        editPopover?.dismiss(animated: false)
+        let host = UIHostingController(rootView: menu)
+        host.sizingOptions = [.preferredContentSize]
+        host.modalPresentationStyle = .popover
+        if let pop = host.popoverPresentationController {
+            pop.delegate = self
+            pop.sourceView = self
+            pop.sourceRect = CGRect(x: point.x, y: point.y, width: 1, height: 1)
+            pop.permittedArrowDirections = [.up, .down]
+        }
+        editPopover = host
+        vc.present(host, animated: true)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -856,47 +924,61 @@ final class ShapeOverlayView: UIView {
         commitChange(from: before)
     }
 
-    /// Copies the selected vector shapes onto the shared clipboard.
+    /// Copies the current selection — vector shapes and/or handwriting ink — onto
+    /// the shared clipboards.
     func copySelected() {
-        guard !selectedIDs.isEmpty else { return }
+        guard hasAnySelection else { return }
         ShapeOverlayView.clipboard = items.filter { selectedIDs.contains($0.id) }
+        ShapeOverlayView.inkClipboard = inkSelectionRect != nil ? copySelectedInkData() : nil
     }
 
     /// Copies the selection to the clipboard, then deletes it.
     func cutSelected() {
-        guard !selectedIDs.isEmpty else { return }
+        guard hasAnySelection else { return }
         copySelected()
         deleteSelected()
     }
 
-    /// Pastes the clipboard's shapes — centered on `point` when supplied (paste
-    /// from an empty-canvas long-press), otherwise nudged from their original
-    /// position — and selects the pasted copies.
+    /// Pastes the clipboard's shapes and/or handwriting ink — centered on `point`
+    /// when supplied (paste from an empty-canvas long-press), otherwise nudged from
+    /// their original position — and selects the pasted copies.
     func pasteClipboard(at point: CGPoint? = nil) {
         let clip = ShapeOverlayView.clipboard
-        guard !clip.isEmpty else { return }
+        let inkData = ShapeOverlayView.inkClipboard
+        guard !clip.isEmpty || inkData != nil else { return }
         let before = items
-        let bbox = clip.reduce(CGRect.null) { $0.union(itemBounds($1)) }
-        let offset: CGPoint = point.map { CGPoint(x: $0.x - bbox.midX, y: $0.y - bbox.midY) }
-            ?? CGPoint(x: 24, y: 24)
+        let beforeInk = inkData != nil ? snapshotInk() : nil
         var newIDs = Set<UUID>()
-        for item in clip {
-            var copy = item
-            copy.id = UUID()
-            copy.frame = item.frame.offsetBy(dx: offset.x, dy: offset.y)
-            if item.kind.isLineLike {
-                copy.start = CGPoint(x: item.start.x + offset.x, y: item.start.y + offset.y)
-                copy.end = CGPoint(x: item.end.x + offset.x, y: item.end.y + offset.y)
+        if !clip.isEmpty {
+            let bbox = clip.reduce(CGRect.null) { $0.union(itemBounds($1)) }
+            let offset: CGPoint = point.map { CGPoint(x: $0.x - bbox.midX, y: $0.y - bbox.midY) }
+                ?? CGPoint(x: 24, y: 24)
+            for item in clip {
+                var copy = item
+                copy.id = UUID()
+                copy.frame = item.frame.offsetBy(dx: offset.x, dy: offset.y)
+                if item.kind.isLineLike {
+                    copy.start = CGPoint(x: item.start.x + offset.x, y: item.start.y + offset.y)
+                    copy.end = CGPoint(x: item.end.x + offset.x, y: item.end.y + offset.y)
+                }
+                // Pasted copies stand alone (connectors lose their node bindings).
+                copy.sourceItemID = nil
+                copy.targetItemID = nil
+                items.append(copy)
+                newIDs.insert(copy.id)
             }
-            // Pasted copies stand alone (connectors lose their node bindings).
-            copy.sourceItemID = nil
-            copy.targetItemID = nil
-            items.append(copy)
-            newIDs.insert(copy.id)
         }
-        clearInkSelectionState()
         selectedIDs = newIDs
-        commitChange(from: before)
+        if let inkData {
+            // Pasting ink selects the new strokes; fold both layers into one undo.
+            inkSelectionRect = pasteInkData(inkData, point)
+            registerSelectionUndo(items: before, ink: beforeInk)
+            onChange(items)
+            setNeedsDisplay()
+        } else {
+            clearInkSelectionState()
+            commitChange(from: before)
+        }
     }
 
     // MARK: - Flowchart connector routing
@@ -965,72 +1047,7 @@ extension ShapeOverlayView: UITextViewDelegate {
 
 // MARK: - Selection edit menu (delete / duplicate / change color)
 
-extension ShapeOverlayView: UIEditMenuInteractionDelegate {
-    func editMenuInteraction(_ interaction: UIEditMenuInteraction,
-                             menuFor configuration: UIEditMenuConfiguration,
-                             suggestedActions: [UIMenuElement]) -> UIMenu? {
-        // One unified menu for any selection — vector shapes, handwriting ink, or
-        // a mix of both. Delete and color apply across every selected element.
-        let hasShapes = !selectedIDs.isEmpty
-        let hasInk = inkSelectionRect != nil
-        guard hasShapes || hasInk else {
-            // Nothing selected: offer Paste on an empty-canvas long-press.
-            guard !ShapeOverlayView.clipboard.isEmpty else { return nil }
-            let anchor = pasteAnchor
-            let paste = UIAction(title: "", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
-                self?.pasteClipboard(at: anchor)
-            }
-            let row = UIMenu(options: .displayInline, children: [paste])
-            row.preferredElementSize = .small
-            return UIMenu(children: [row])
-        }
-
-        // A lone sticky note / flowchart node recolors its *background* (fill) with
-        // a readable text color; everything else (plain shapes, multi-selections,
-        // ink) recolors stroke/ink.
-        let labelled = !hasInk && (singleSelectedID
-            .flatMap { id in items.first { $0.id == id }?.kind.hasLabel } ?? false)
-        let apply: (RGBAColor) -> Void = labelled
-            ? { [weak self] c in self?.setSelectedFill(c) }
-            : { [weak self] c in self?.setSelectedColor(c) }
-
-        // Icon-only action row: delete, then copy + cut (shapes only — ink can't
-        // be copied). Inline + .small renders them as compact icon buttons.
-        let delete = UIAction(title: "", image: UIImage(systemName: "trash"),
-                              attributes: .destructive) { [weak self] _ in
-            self?.deleteSelected()
-        }
-        var actionChildren: [UIMenuElement] = [delete]
-        if hasShapes {
-            let copy = UIAction(title: "", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
-                self?.copySelected()
-            }
-            let cut = UIAction(title: "", image: UIImage(systemName: "scissors")) { [weak self] _ in
-                self?.cutSelected()
-            }
-            actionChildren.append(contentsOf: [copy, cut])
-        }
-        let actions = UIMenu(options: .displayInline, children: actionChildren)
-        actions.preferredElementSize = .small
-
-        // Color swatch grid, with the system color wheel (eyedropper) as the last
-        // cell. Inline + .small lays them out as a grid like the toolbar dropdown.
-        var colorActions: [UIMenuElement] = ToolDefaults.extendedPalette.map { color in
-            UIAction(title: "", image: ShapeOverlayView.swatch(color.uiColor)) { _ in
-                apply(color)
-            }
-        }
-        let custom = UIAction(title: "", image: UIImage(systemName: "eyedropper")) { [weak self] _ in
-            self?.presentCustomColorPicker(current: .black) { c in apply(c) }
-        }
-        colorActions.append(custom)
-        let palette = UIMenu(title: labelled ? "Background Color" : "Color",
-                             options: .displayInline, children: colorActions)
-        palette.preferredElementSize = .small
-
-        return UIMenu(children: [actions, palette])
-    }
-
+extension ShapeOverlayView {
     /// A small filled-circle image used as a color menu swatch (with a hairline
     /// border so white / light colors stay visible on the menu background).
     private static func swatch(_ color: UIColor) -> UIImage {
@@ -1083,5 +1100,107 @@ extension ShapeOverlayView: UIColorPickerViewControllerDelegate {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
         c.getRed(&r, green: &g, blue: &b, alpha: &a)
         return RGBAColor(red: Double(r), green: Double(g), blue: Double(b), alpha: Double(a))
+    }
+}
+
+// MARK: - Popover presentation
+
+extension ShapeOverlayView: UIPopoverPresentationControllerDelegate {
+    /// Keep the edit menu a popover (never a full-screen sheet), even in a
+    /// compact width, so the action buttons and color grid stay anchored.
+    func adaptivePresentationStyle(
+        for controller: UIPresentationController) -> UIModalPresentationStyle { .none }
+}
+
+// MARK: - Selection edit menu UI
+
+/// The popover shown next to a selection: an action row (delete / copy / cut)
+/// and a non-scrolling color grid that mirrors the toolbar's color palette.
+/// On an empty-canvas long-press it collapses to a single Paste button.
+private struct SelectionEditMenu: View {
+    enum Mode {
+        case selection(showCopyCut: Bool, title: String)
+        case paste
+    }
+
+    let mode: Mode
+    let currentColor: RGBAColor?
+    let onDelete: () -> Void
+    let onCopy: () -> Void
+    let onCut: () -> Void
+    let onColor: (RGBAColor) -> Void
+    let onCustomColor: () -> Void
+    let onPaste: () -> Void
+    let dismiss: () -> Void
+
+    // Same 6-column grid the toolbar's color dropdown uses.
+    private let columns = Array(repeating: GridItem(.fixed(30), spacing: 10), count: 6)
+
+    var body: some View {
+        switch mode {
+        case .paste:
+            Button {
+                onPaste(); dismiss()
+            } label: {
+                Label("Paste", systemImage: "doc.on.clipboard").font(.subheadline)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
+
+        case let .selection(showCopyCut, title):
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    action("Delete", "trash", tint: .red) { onDelete(); dismiss() }
+                    if showCopyCut {
+                        action("Copy", "doc.on.doc") { onCopy(); dismiss() }
+                        action("Cut", "scissors") { onCut(); dismiss() }
+                    }
+                }
+                Divider()
+                Text(title)
+                    .font(.caption).foregroundStyle(.secondary)
+                LazyVGrid(columns: columns, spacing: 10) {
+                    ForEach(Array(ToolDefaults.extendedPalette.enumerated()), id: \.offset) { _, color in
+                        Button {
+                            onColor(color); dismiss()
+                        } label: {
+                            Circle()
+                                .fill(color.color)
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().stroke(Color.accentColor,
+                                                         lineWidth: currentColor == color ? 3 : 0))
+                                .overlay(Circle().stroke(Color.primary.opacity(0.2), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                Divider()
+                Button {
+                    onCustomColor()
+                } label: {
+                    Label("Custom color…", systemImage: "eyedropper").font(.subheadline)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(16)
+            .frame(width: 268)
+        }
+    }
+
+    /// A vertical icon-over-label action button used in the action row.
+    private func action(_ title: String, _ icon: String,
+                        tint: Color = .accentColor,
+                        _ run: @escaping () -> Void) -> some View {
+        Button(action: run) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.title3)
+                Text(title).font(.caption2)
+            }
+            .frame(minWidth: 56)
+            .foregroundStyle(tint)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

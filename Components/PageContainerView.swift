@@ -209,6 +209,34 @@ final class PageContainerView: UIView {
         selectedInkIndices = []
     }
 
+    /// Serializes the lasso-selected strokes as a standalone drawing for copy /
+    /// cut, or nil when nothing is selected.
+    func copySelectedInk() -> Data? {
+        let strokes = canvas.drawing.strokes
+        let picked = selectedInkIndices.filter { $0 < strokes.count }.map { strokes[$0] }
+        guard !picked.isEmpty else { return nil }
+        return PKDrawing(strokes: picked).dataRepresentation()
+    }
+
+    /// Appends the strokes encoded in `data` — centered on `point` when given,
+    /// else nudged from their original spot — then selects them and returns their
+    /// bounding box (nil if the data can't be decoded or is empty).
+    func pasteInk(_ data: Data, at point: CGPoint?) -> CGRect? {
+        guard let pasted = try? PKDrawing(data: data), !pasted.strokes.isEmpty else { return nil }
+        let bbox = pasted.bounds
+        let offset = point.map { CGSize(width: $0.x - bbox.midX, height: $0.y - bbox.midY) }
+            ?? CGSize(width: 24, height: 24)
+        let t = CGAffineTransform(translationX: offset.width, y: offset.height)
+        let moved = pasted.strokes.map {
+            PKStroke(ink: $0.ink, path: $0.path,
+                     transform: $0.transform.concatenating(t), mask: $0.mask)
+        }
+        let existing = canvas.drawing.strokes
+        canvas.drawing = PKDrawing(strokes: existing + moved)
+        selectedInkIndices = Array(existing.count..<(existing.count + moved.count))
+        return PKDrawing(strokes: moved).bounds
+    }
+
     private func mutateSelectedInk(_ transform: (PKStroke) -> PKStroke) {
         guard !selectedInkIndices.isEmpty else { return }
         var strokes = canvas.drawing.strokes

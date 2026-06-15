@@ -385,6 +385,14 @@ struct CanvasContainerView: UIViewRepresentable {
                 pv.deleteSelectedInk()
                 self?.persistInk(of: pv, page: page)
             }
+            // Copy / cut / paste handwriting strokes (works across pages).
+            pv.overlay.copySelectedInkData = { [weak pv] in pv?.copySelectedInk() }
+            pv.overlay.pasteInkData = { [weak self, weak pv, weak page] data, point in
+                guard let pv, let page else { return nil }
+                let rect = pv.pasteInk(data, at: point)
+                self?.persistInk(of: pv, page: page)
+                return rect
+            }
             // Snapshot / restore the whole drawing so the overlay can fold ink edits
             // into its combined (shapes + ink) undo steps.
             pv.overlay.snapshotInk = { [weak pv] in pv?.canvas.drawing.dataRepresentation() }
