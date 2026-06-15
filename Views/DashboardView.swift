@@ -11,6 +11,9 @@ enum DashboardRoute: Hashable {
 /// Reused for sub-notebook folders via `parent`.
 struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
+    /// Live CloudKit sync status (drives the toolbar indicator + auto-refresh).
+    @State private var sync = CloudSyncMonitor.shared
     @State private var viewModel: DashboardViewModel
     @State private var path = NavigationPath()
     @State private var showingNewNotebook = false
@@ -23,6 +26,15 @@ struct DashboardView: View {
     @State private var showingImporter = false
     /// Notebook whose tags are being edited.
     @State private var taggingNotebook: Notebook?
+    /// Transient banner shown when the user taps the sync button.
+    @State private var syncFeedback: SyncFeedback?
+
+    /// Status shown in the sync toast.
+    enum SyncFeedback: Equatable {
+        case syncing
+        case updated
+        case failed(String)
+    }
 
     private let title: String
 
@@ -32,6 +44,10 @@ struct DashboardView: View {
     }
 
     private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 20)]
+
+    /// The iPad is the source of truth, so the manual iCloud-download button is
+    /// only useful on iPhone.
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -85,6 +101,14 @@ struct DashboardView: View {
                 .background(.bar)
         }
         .toolbar { toolbarContent }
+        .overlay(alignment: .bottom) { syncToast }
+        .animation(.spring(duration: 0.3), value: syncFeedback)
+        // A remote import finished → surface the newly synced notebooks.
+        .onChange(of: sync.lastImportDate) { _, _ in viewModel.reload() }
+        // Returning to the app triggers CloudKit's foreground fetch; refresh too.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { viewModel.reload() }
+        }
         .alert("New Notebook", isPresented: $showingNewNotebook) {
             TextField("Notebook name", text: $newNotebookName)
             Button("Create") {
@@ -124,6 +148,53 @@ struct DashboardView: View {
         }
     }
 
+    /// Runs a manual iCloud sync and shows a transient status banner: a spinner
+    /// while it works, then "Notebooks updated" (or an error). The on-device
+    /// CloudKit fetch is asynchronous, so we give it a short window before
+    /// re-reading and reporting the result.
+    private func runSync() {
+        guard syncFeedback != .syncing else { return }
+        syncFeedback = .syncing
+        viewModel.syncNow()                 // push local changes + refresh now
+        Task {
+            try? await Task.sleep(for: .seconds(2))   // let CloudKit import land
+            viewModel.reload()
+            if let error = sync.lastErrorMessage {
+                syncFeedback = .failed(error)
+            } else {
+                syncFeedback = .updated
+            }
+            try? await Task.sleep(for: .seconds(2))
+            if syncFeedback != .syncing { syncFeedback = nil }
+        }
+    }
+
+    @ViewBuilder
+    private var syncToast: some View {
+        if let syncFeedback {
+            HStack(spacing: 8) {
+                switch syncFeedback {
+                case .syncing:
+                    ProgressView()
+                    Text("Syncing with iCloud…")
+                case .updated:
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text("Notebooks updated")
+                case .failed(let message):
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    Text("Sync failed: \(message)").lineLimit(2)
+                }
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+            .shadow(radius: 6, y: 2)
+            .padding(.bottom, 56)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
@@ -149,6 +220,20 @@ struct DashboardView: View {
                               ? "line.3.horizontal.decrease.circle"
                               : "line.3.horizontal.decrease.circle.fill")
                 }
+            }
+        }
+        if isPhone {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    runSync()
+                } label: {
+                    if syncFeedback == .syncing || sync.isSyncing {
+                        ProgressView()
+                    } else {
+                        Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .disabled(syncFeedback == .syncing)
             }
         }
         ToolbarItem(placement: .topBarTrailing) {

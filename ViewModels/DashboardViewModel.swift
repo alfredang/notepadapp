@@ -74,6 +74,19 @@ final class DashboardViewModel {
         }
     }
 
+    /// Manual iCloud sync: flush any pending local edits up to CloudKit, then
+    /// re-fetch so changes already imported from other devices show up. CloudKit
+    /// performs the actual network fetch in the background; this pushes local
+    /// changes immediately and surfaces whatever has landed locally.
+    func syncNow() {
+        do {
+            try repository.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        reload()
+    }
+
     @discardableResult
     func createNotebook(title: String) -> Notebook? {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)

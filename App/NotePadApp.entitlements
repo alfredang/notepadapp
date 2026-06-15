@@ -12,11 +12,14 @@
 	</array>
 	<key>aps-environment</key>
 	<string>development</string>
-	<!-- Local dev builds (iPad / iPhone / Mac) read the PRODUCTION CloudKit
-	     environment so they see the same notebooks as the App Store app and sync
-	     across devices. TestFlight/App Store (Release) use Production implicitly. -->
+	<!-- Local dev builds (iPad / iPhone / Mac) use the DEVELOPMENT CloudKit
+	     environment: it auto-creates the schema (no manual deploy) and matches the
+	     development APNs above, so silent-push real-time sync works across the
+	     developer's own devices. TestFlight/App Store (Release) use Production
+	     implicitly — its schema must be deployed in the CloudKit Console before
+	     shipping. -->
 	<key>com.apple.developer.icloud-container-environment</key>
-	<string>Production</string>
+	<string>Development</string>
 	<!-- macOS (Mac Catalyst) only; ignored on iOS. Required for the sandboxed
 	     Mac build to reach CloudKit over the network. -->
 	<key>com.apple.security.app-sandbox</key>
