@@ -90,6 +90,12 @@ final class ShapeOverlayView: UIView {
     /// Applies a color picked from the system color wheel to the active selection.
     private var pendingColorApply: ((RGBAColor) -> Void)?
 
+    /// Vector shapes copied/cut from a selection. Static so a copy on one page can
+    /// paste onto another. Ink isn't copied (only shapes, like duplicate).
+    private static var clipboard: [CanvasItem] = []
+    /// Canvas point a long-press landed on empty space, used to anchor a paste.
+    private var pasteAnchor: CGPoint?
+
     // Inline text editor (type directly into a sticky note / labelled shape).
     private weak var activeTextView: UITextView?
     private var editingItemID: UUID?
@@ -118,7 +124,16 @@ final class ShapeOverlayView: UIView {
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, tool == .selection, activeTextView == nil else { return }
         let point = gesture.location(in: self)
-        guard let item = items.last(where: { hitTest($0, point: point) }) else { return }
+        guard let item = items.last(where: { hitTest($0, point: point) }) else {
+            // Long-press on empty canvas → Paste menu when the clipboard has items.
+            guard !ShapeOverlayView.clipboard.isEmpty else { return }
+            clearInkSelectionState()
+            selectedIDs.removeAll()
+            setNeedsDisplay()
+            pasteAnchor = point
+            presentEditMenu(at: point)
+            return
+        }
         clearInkSelectionState()
         selectedIDs = [item.id]
         dragMode = .none
@@ -531,8 +546,22 @@ final class ShapeOverlayView: UIView {
 
     @objc private func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
         let point = gesture.location(in: self)
+        // Double-tap the current selection → bring up its edit menu
+        // (delete / copy / cut / color).
+        if tool == .selection, activeTextView == nil, selectionContains(point) {
+            presentEditMenu(at: CGPoint(x: point.x, y: point.y - 8))
+            return
+        }
+        // Otherwise, double-tap a labelled item to edit its text.
         guard let item = items.last(where: { $0.kind.hasLabel && hitTest($0, point: point) }) else { return }
         beginTextEditing(for: item.id)
+    }
+
+    /// True when `point` lies on the current selection — a selected vector shape
+    /// or the handwriting-ink selection box.
+    private func selectionContains(_ point: CGPoint) -> Bool {
+        if let rect = inkSelectionRect, rect.insetBy(dx: -6, dy: -6).contains(point) { return true }
+        return items.contains { selectedIDs.contains($0.id) && hitTest($0, point: point) }
     }
 
     // MARK: - Inline text editing
@@ -827,6 +856,49 @@ final class ShapeOverlayView: UIView {
         commitChange(from: before)
     }
 
+    /// Copies the selected vector shapes onto the shared clipboard.
+    func copySelected() {
+        guard !selectedIDs.isEmpty else { return }
+        ShapeOverlayView.clipboard = items.filter { selectedIDs.contains($0.id) }
+    }
+
+    /// Copies the selection to the clipboard, then deletes it.
+    func cutSelected() {
+        guard !selectedIDs.isEmpty else { return }
+        copySelected()
+        deleteSelected()
+    }
+
+    /// Pastes the clipboard's shapes — centered on `point` when supplied (paste
+    /// from an empty-canvas long-press), otherwise nudged from their original
+    /// position — and selects the pasted copies.
+    func pasteClipboard(at point: CGPoint? = nil) {
+        let clip = ShapeOverlayView.clipboard
+        guard !clip.isEmpty else { return }
+        let before = items
+        let bbox = clip.reduce(CGRect.null) { $0.union(itemBounds($1)) }
+        let offset: CGPoint = point.map { CGPoint(x: $0.x - bbox.midX, y: $0.y - bbox.midY) }
+            ?? CGPoint(x: 24, y: 24)
+        var newIDs = Set<UUID>()
+        for item in clip {
+            var copy = item
+            copy.id = UUID()
+            copy.frame = item.frame.offsetBy(dx: offset.x, dy: offset.y)
+            if item.kind.isLineLike {
+                copy.start = CGPoint(x: item.start.x + offset.x, y: item.start.y + offset.y)
+                copy.end = CGPoint(x: item.end.x + offset.x, y: item.end.y + offset.y)
+            }
+            // Pasted copies stand alone (connectors lose their node bindings).
+            copy.sourceItemID = nil
+            copy.targetItemID = nil
+            items.append(copy)
+            newIDs.insert(copy.id)
+        }
+        clearInkSelectionState()
+        selectedIDs = newIDs
+        commitChange(from: before)
+    }
+
     // MARK: - Flowchart connector routing
 
     /// Re-anchors connectors bound to nodes so they follow the nodes when moved.
@@ -901,7 +973,17 @@ extension ShapeOverlayView: UIEditMenuInteractionDelegate {
         // a mix of both. Delete and color apply across every selected element.
         let hasShapes = !selectedIDs.isEmpty
         let hasInk = inkSelectionRect != nil
-        guard hasShapes || hasInk else { return nil }
+        guard hasShapes || hasInk else {
+            // Nothing selected: offer Paste on an empty-canvas long-press.
+            guard !ShapeOverlayView.clipboard.isEmpty else { return nil }
+            let anchor = pasteAnchor
+            let paste = UIAction(title: "", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
+                self?.pasteClipboard(at: anchor)
+            }
+            let row = UIMenu(options: .displayInline, children: [paste])
+            row.preferredElementSize = .small
+            return UIMenu(children: [row])
+        }
 
         // A lone sticky note / flowchart node recolors its *background* (fill) with
         // a readable text color; everything else (plain shapes, multi-selections,
@@ -912,34 +994,41 @@ extension ShapeOverlayView: UIEditMenuInteractionDelegate {
             ? { [weak self] c in self?.setSelectedFill(c) }
             : { [weak self] c in self?.setSelectedColor(c) }
 
-        let colorActions = ToolDefaults.extendedPalette.map { color in
+        // Icon-only action row: delete, then copy + cut (shapes only — ink can't
+        // be copied). Inline + .small renders them as compact icon buttons.
+        let delete = UIAction(title: "", image: UIImage(systemName: "trash"),
+                              attributes: .destructive) { [weak self] _ in
+            self?.deleteSelected()
+        }
+        var actionChildren: [UIMenuElement] = [delete]
+        if hasShapes {
+            let copy = UIAction(title: "", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+                self?.copySelected()
+            }
+            let cut = UIAction(title: "", image: UIImage(systemName: "scissors")) { [weak self] _ in
+                self?.cutSelected()
+            }
+            actionChildren.append(contentsOf: [copy, cut])
+        }
+        let actions = UIMenu(options: .displayInline, children: actionChildren)
+        actions.preferredElementSize = .small
+
+        // Color swatch grid, with the system color wheel (eyedropper) as the last
+        // cell. Inline + .small lays them out as a grid like the toolbar dropdown.
+        var colorActions: [UIMenuElement] = ToolDefaults.extendedPalette.map { color in
             UIAction(title: "", image: ShapeOverlayView.swatch(color.uiColor)) { _ in
                 apply(color)
             }
         }
-        // Inline + .small lays the swatches out as a grid, like the toolbar's
-        // color dropdown.
+        let custom = UIAction(title: "", image: UIImage(systemName: "eyedropper")) { [weak self] _ in
+            self?.presentCustomColorPicker(current: .black) { c in apply(c) }
+        }
+        colorActions.append(custom)
         let palette = UIMenu(title: labelled ? "Background Color" : "Color",
                              options: .displayInline, children: colorActions)
         palette.preferredElementSize = .small
-        let custom = UIAction(title: "Custom…", image: UIImage(systemName: "eyedropper")) { [weak self] _ in
-            self?.presentCustomColorPicker(current: .black) { c in apply(c) }
-        }
-        let delete = UIAction(title: "Delete", image: UIImage(systemName: "trash"),
-                              attributes: .destructive) { [weak self] _ in
-            self?.deleteSelected()
-        }
-        var children: [UIMenuElement] = [delete]
-        // Duplicate only applies to vector shapes (ink duplication isn't supported).
-        if hasShapes {
-            let duplicate = UIAction(title: "Duplicate",
-                                     image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
-                self?.duplicateSelected()
-            }
-            children.append(duplicate)
-        }
-        children.append(contentsOf: [palette, custom])
-        return UIMenu(children: children)
+
+        return UIMenu(children: [actions, palette])
     }
 
     /// A small filled-circle image used as a color menu swatch (with a hairline
