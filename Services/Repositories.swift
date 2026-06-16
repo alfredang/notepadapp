@@ -66,9 +66,10 @@ final class NotebookRepository: NotebookRepositoryProtocol {
     func create(title: String, parent: Notebook?) throws(StorageError) -> Notebook {
         let siblingsCount = parent?.children?.count ?? (try? allTopLevel(sortedBy: .createdDate).count) ?? 0
         let notebook = Notebook(title: title, sortIndex: siblingsCount, parent: parent)
-        // Default template for new notebooks: portrait blackboard, blank pattern.
-        notebook.paperSurface = .blackboard
-        notebook.paperPattern = .blank
+        // Default template for new notebooks comes from Settings (portrait
+        // blackboard / blank if the user hasn't changed it).
+        notebook.paperSurface = AppDefaults.paperSurface
+        notebook.paperPattern = AppDefaults.paperPattern
         notebook.paperLayout = .portrait
         context.insert(notebook)
         parent?.touch()

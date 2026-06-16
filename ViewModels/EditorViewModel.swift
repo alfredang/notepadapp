@@ -29,8 +29,24 @@ final class EditorViewModel {
     /// the page and can append a new one. Toggle on to draw with a finger.
     var allowsFingerDrawing: Bool = false
 
-    /// Hides the floating tool palette (toggled by a double-tap on the Pencil).
+    /// Hides the floating tool palette.
     var isPaletteHidden: Bool = false
+
+    /// The tool to restore when a Pencil double-tap tool toggle is undone.
+    private var toolBeforeToggle: EditorTool?
+
+    /// Apple Pencil double-tap: switch to `target`, and a second double-tap
+    /// restores the tool that was active before. Mirrors the system Pencil
+    /// "switch to eraser" gesture.
+    func togglePencilTool(_ target: EditorTool) {
+        if tool == target {
+            tool = toolBeforeToggle ?? .pen
+            toolBeforeToggle = nil
+        } else {
+            toolBeforeToggle = tool
+            tool = target
+        }
+    }
 
     /// When false the canvas is view-only: no drawing/selection, only scroll &
     /// zoom. iPhone and Mac are view-only; the iPad is the editing device.

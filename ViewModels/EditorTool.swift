@@ -30,9 +30,64 @@ enum EditorTool: Equatable {
     }
 }
 
+/// What a double-tap (or squeeze) on the Apple Pencil does. Chosen in Settings.
+enum PencilDoubleTapAction: String, CaseIterable, Identifiable {
+    case undo
+    case eraser
+    case lasso
+    case off
+
+    var id: String { rawValue }
+
+    /// The persisted preference (`@AppStorage` reads the raw string).
+    static let storageKey = "pencilDoubleTapAction"
+
+    var title: String {
+        switch self {
+        case .undo:   "Undo / Redo"
+        case .eraser: "Switch to Eraser"
+        case .lasso:  "Switch to Lasso"
+        case .off:    "Off"
+        }
+    }
+
+    static var current: PencilDoubleTapAction {
+        let raw = UserDefaults.standard.string(forKey: storageKey)
+        return raw.flatMap(PencilDoubleTapAction.init(rawValue:)) ?? .eraser
+    }
+}
+
+/// User-configurable defaults persisted in `UserDefaults`, shared between the
+/// Settings screen and the code that applies them (the editor and the
+/// new-notebook factory). Keeping the keys + fallbacks here avoids drift.
+enum AppDefaults {
+    static let penWidthKey = "defaultPenWidth"
+    static let eraserWidthKey = "defaultEraserWidth"
+    static let surfaceKey = "defaultPaperSurface"
+    static let patternKey = "defaultPaperPattern"
+
+    static var penWidth: CGFloat {
+        let v = UserDefaults.standard.double(forKey: penWidthKey)
+        return v > 0 ? v : 2
+    }
+    static var eraserWidth: CGFloat {
+        let v = UserDefaults.standard.double(forKey: eraserWidthKey)
+        return v > 0 ? v : 20
+    }
+    static var paperSurface: PaperSurface {
+        UserDefaults.standard.string(forKey: surfaceKey)
+            .flatMap(PaperSurface.init(rawValue:)) ?? .blackboard
+    }
+    static var paperPattern: PaperPattern {
+        UserDefaults.standard.string(forKey: patternKey)
+            .flatMap(PaperPattern.init(rawValue:)) ?? .blank
+    }
+}
+
 /// Predefined pen widths (px), per spec.
 enum ToolDefaults {
     static let penSizes: [CGFloat] = [1, 2, 4, 6, 8, 12, 16, 20]
+    static let eraserSizes: [CGFloat] = [10, 20, 30, 45, 60]
     static let highlighterSizes: [CGFloat] = [5, 10, 20, 30]
     static let shapeWidths: [CGFloat] = [1, 2, 4, 6, 8, 10]
 

@@ -53,7 +53,7 @@ struct CanvasContainerView: UIViewRepresentable {
             NSNumber(value: UITouch.TouchType.direct.rawValue)
         ]
 
-        // Double-tap (or squeeze) on the Apple Pencil toggles the tool palette.
+        // Double-tap (or squeeze) on the Apple Pencil runs the chosen action.
         let pencilInteraction = UIPencilInteraction()
         pencilInteraction.delegate = context.coordinator
         scrollView.addInteraction(pencilInteraction)
@@ -522,16 +522,31 @@ struct CanvasContainerView: UIViewRepresentable {
 
         // MARK: UIPencilInteractionDelegate
 
-        /// Apple Pencil double-tap / squeeze — hides or shows the tool palette
-        /// when the user has enabled that gesture in Settings (default on).
+        /// Apple Pencil double-tap — runs the action chosen in Settings
+        /// (undo/redo, switch to eraser, switch to lasso, or off).
         func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
-            togglePaletteIfEnabled()
+            runPencilDoubleTapAction()
         }
 
-        private func togglePaletteIfEnabled() {
-            let enabled = UserDefaults.standard.object(forKey: "pencilDoubleTapHidesPalette") as? Bool ?? true
-            guard enabled else { return }
-            editor.isPaletteHidden.toggle()
+        /// Apple Pencil Pro squeeze — same configurable action as the double-tap.
+        func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
+            guard squeeze.phase == .ended else { return }
+            runPencilDoubleTapAction()
+        }
+
+        private func runPencilDoubleTapAction() {
+            switch PencilDoubleTapAction.current {
+            case .undo:
+                controller.undo()
+            case .eraser:
+                editor.togglePencilTool(.eraserPixel)
+                applyTool()   // push to the live canvas now, don't wait for a re-render
+            case .lasso:
+                editor.togglePencilTool(.selection)
+                applyTool()
+            case .off:
+                break
+            }
         }
 
         // MARK: PKCanvasViewDelegate

@@ -98,6 +98,9 @@ struct NotebookView: View {
             // or template edits, so notes can't be messed up while reviewing them.
             editorVM.isEditable = DeviceKind.isPad
             editorVM.allowsFingerDrawing = DeviceKind.isPad ? allowsFingerDrawing : false
+            // Seed pen / eraser sizes from the user's defaults.
+            editorVM.penWidth = AppDefaults.penWidth
+            editorVM.eraserWidth = AppDefaults.eraserWidth
             // Default ink to the notebook's surface so it's visible (white
             // chalk on a blackboard, black on white paper).
             let ink = notebookVM.paperSurface.defaultInkColor

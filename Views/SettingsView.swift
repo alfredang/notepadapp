@@ -5,8 +5,11 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("allowsFingerDrawing") private var allowsFingerDrawing = false
-    @AppStorage("pencilDoubleTapHidesPalette") private var pencilDoubleTapHidesPalette = true
-    @AppStorage("defaultPenWidth") private var defaultPenWidth = 2.0
+    @AppStorage(PencilDoubleTapAction.storageKey) private var pencilDoubleTapAction = PencilDoubleTapAction.eraser.rawValue
+    @AppStorage(AppDefaults.penWidthKey) private var defaultPenWidth = 2.0
+    @AppStorage(AppDefaults.eraserWidthKey) private var defaultEraserWidth = 20.0
+    @AppStorage(AppDefaults.surfaceKey) private var defaultSurface = PaperSurface.blackboard.rawValue
+    @AppStorage(AppDefaults.patternKey) private var defaultPattern = PaperPattern.blank.rawValue
     @AppStorage("showPageNumbers") private var showPageNumbers = true
 
     var body: some View {
@@ -17,8 +20,12 @@ struct SettingsView: View {
                     Text("When off, fingers pan and zoom while Apple Pencil draws.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Toggle("Double-tap Pencil to hide palette", isOn: $pencilDoubleTapHidesPalette)
-                    Text("Double-tap (or squeeze) your Apple Pencil to show or hide the floating tool palette.")
+                    Picker("Double-tap Pencil", selection: $pencilDoubleTapAction) {
+                        ForEach(PencilDoubleTapAction.allCases) { action in
+                            Text(action.title).tag(action.rawValue)
+                        }
+                    }
+                    Text("Choose what a double-tap (or squeeze) on your Apple Pencil does.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -28,7 +35,27 @@ struct SettingsView: View {
                             Text("\(Int(size)) px").tag(Double(size))
                         }
                     }
+                    Picker("Default eraser size", selection: $defaultEraserWidth) {
+                        ForEach(ToolDefaults.eraserSizes, id: \.self) { size in
+                            Text("\(Int(size)) px").tag(Double(size))
+                        }
+                    }
                     Toggle("Show page numbers", isOn: $showPageNumbers)
+                }
+                Section("Default Template") {
+                    Text("Applied to new notebooks. Existing notebooks keep their template.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Surface", selection: $defaultSurface) {
+                        ForEach(PaperSurface.allCases) { surface in
+                            Text(surface.displayName).tag(surface.rawValue)
+                        }
+                    }
+                    Picker("Pattern", selection: $defaultPattern) {
+                        ForEach(PaperPattern.allCases) { pattern in
+                            Text(pattern.displayName).tag(pattern.rawValue)
+                        }
+                    }
                 }
                 Section("About") {
                     LabeledContent("Version", value: "1.0")
