@@ -136,7 +136,14 @@ final class PageRepository: PageRepositoryProtocol {
         var pages = notebook.orderedPages
         let insertIndex = index ?? pages.count
         let clamped = max(0, min(insertIndex, pages.count))
-        let page = Page(pageIndex: clamped, notebook: notebook)
+        // Inherit the notebook's template so new pages (incl. the auto-created
+        // first page) match the user's default surface/pattern rather than the
+        // Page initializer's hardcoded whiteboard.
+        let page = Page(pageIndex: clamped,
+                        surface: notebook.paperSurface,
+                        pattern: notebook.paperPattern,
+                        layout: notebook.paperLayout,
+                        notebook: notebook)
         context.insert(page)
         pages.insert(page, at: clamped)
         reindex(pages)
