@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>GU9WTSTX9M</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>signingCertificate</key>
+	<string>Apple Distribution: Alfred Ang</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.tertiaryinfotech.notepadapp</key>
+		<string>NotePad App Store 1.1</string>
+	</dict>
+	<key>destination</key>
+	<string>export</string>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>generateAppStoreInformation</key>
+	<true/>
+</dict>
+</plist>
