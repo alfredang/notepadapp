@@ -18,6 +18,7 @@ struct DashboardView: View {
     @State private var path = NavigationPath()
     @State private var showingNewNotebook = false
     @State private var newNotebookName = ""
+    @State private var notebookToOpenAfterCreate: Notebook?
     @State private var showingSettings = false
     /// Pending deletion awaiting confirmation.
     @State private var pendingDelete: Notebook?
@@ -44,10 +45,6 @@ struct DashboardView: View {
     }
 
     private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 20)]
-
-    /// The iPad is the source of truth, so the manual iCloud-download button is
-    /// only useful on iPhone.
-    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -80,8 +77,9 @@ struct DashboardView: View {
                             onDuplicate: { viewModel.duplicate(notebook) },
                             onDelete: { pendingDelete = notebook },
                             onAddSubNotebook: {
-                                _ = viewModel.createNotebook(title: "New Folder")
-                                // Created at parent scope; reload handled by VM.
+                                if let child = viewModel.createSubNotebook(title: "Untitled Notebook", under: notebook) {
+                                    path.append(DashboardRoute.editor(child))
+                                }
                             },
                             onShare: { shareItem = .notebookArchive(notebook) },
                             onEditTags: { taggingNotebook = notebook }
@@ -103,16 +101,27 @@ struct DashboardView: View {
         .toolbar { toolbarContent }
         .overlay(alignment: .bottom) { syncToast }
         .animation(.spring(duration: 0.3), value: syncFeedback)
+        .task { viewModel.restoreFromCloudIfNeeded() }
         // A remote import finished → surface the newly synced notebooks.
         .onChange(of: sync.lastImportDate) { _, _ in viewModel.reload() }
         // Returning to the app triggers CloudKit's foreground fetch; refresh too.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { viewModel.reload() }
+            if phase == .active {
+                viewModel.reload()
+                viewModel.restoreFromCloudIfNeeded()
+            }
+        }
+        .onChange(of: showingNewNotebook) { _, isShowing in
+            guard !isShowing, let notebook = notebookToOpenAfterCreate else { return }
+            notebookToOpenAfterCreate = nil
+            path.append(DashboardRoute.editor(notebook))
         }
         .alert("New Notebook", isPresented: $showingNewNotebook) {
             TextField("Notebook name", text: $newNotebookName)
             Button("Create") {
-                _ = viewModel.createNotebook(title: newNotebookName)
+                if let notebook = viewModel.createNotebook(title: newNotebookName) {
+                    notebookToOpenAfterCreate = notebook
+                }
                 newNotebookName = ""
             }
             Button("Cancel", role: .cancel) { newNotebookName = "" }
@@ -222,19 +231,17 @@ struct DashboardView: View {
                 }
             }
         }
-        if isPhone {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    runSync()
-                } label: {
-                    if syncFeedback == .syncing || sync.isSyncing {
-                        ProgressView()
-                    } else {
-                        Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath")
-                    }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                runSync()
+            } label: {
+                if syncFeedback == .syncing || sync.isSyncing {
+                    ProgressView()
+                } else {
+                    Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .disabled(syncFeedback == .syncing)
             }
+            .disabled(syncFeedback == .syncing)
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
@@ -263,13 +270,29 @@ struct DashboardView: View {
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Notebooks", systemImage: "book.closed")
-        } description: {
-            Text("Create your first notebook to start taking notes.")
-        } actions: {
-            Button("Create Notebook") { showingNewNotebook = true }
-                .buttonStyle(.borderedProminent)
+        Group {
+            if viewModel.isRestoringFromCloud {
+                VStack(spacing: 14) {
+                    ProgressView()
+                    ContentUnavailableView {
+                        Label("Syncing Notebooks", systemImage: "icloud.and.arrow.down")
+                    } description: {
+                        Text("Restoring your notebooks from iCloud.")
+                    }
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("No Notebooks", systemImage: "book.closed")
+                } description: {
+                    Text("Create your first notebook to start taking notes.")
+                } actions: {
+                    HStack {
+                        Button("Sync with iCloud") { runSync() }
+                            .buttonStyle(.borderedProminent)
+                        Button("Create Notebook") { showingNewNotebook = true }
+                    }
+                }
+            }
         }
         .padding(.top, 80)
     }

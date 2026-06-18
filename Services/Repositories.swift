@@ -72,6 +72,13 @@ final class NotebookRepository: NotebookRepositoryProtocol {
         notebook.paperPattern = AppDefaults.paperPattern
         notebook.paperLayout = .portrait
         context.insert(notebook)
+        let page = Page(pageIndex: 0,
+                        surface: notebook.paperSurface,
+                        pattern: notebook.paperPattern,
+                        layout: notebook.paperLayout,
+                        notebook: notebook)
+        context.insert(page)
+        notebook.pages = [page]
         parent?.touch()
         try save()
         return notebook

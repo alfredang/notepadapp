@@ -1,9 +1,22 @@
 import SwiftUI
 import SwiftData
+import UIKit
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        application.registerForRemoteNotifications()
+        return true
+    }
+}
 
 /// App entry point. Installs the SwiftData container and presents the root navigation.
 @main
 struct NotePadApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     /// Shared model container for the whole app. Created once at launch.
     let container: ModelContainer
 

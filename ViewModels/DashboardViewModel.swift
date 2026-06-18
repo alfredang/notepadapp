@@ -18,6 +18,11 @@ final class DashboardViewModel {
     /// Active tag filter (nil = show all).
     var selectedTag: String?
     var errorMessage: String?
+    /// True while a fresh install / reinstall is waiting for SwiftData's first
+    /// CloudKit import to populate the local store.
+    var isRestoringFromCloud = false
+    var hasCheckedCloudRestore = false
+    @ObservationIgnored private var cloudRestoreTask: Task<Void, Never>?
 
     /// All tags used across the current notebooks, sorted, for the filter menu.
     var allTags: [String] {
@@ -85,10 +90,57 @@ final class DashboardViewModel {
             errorMessage = error.localizedDescription
         }
         reload()
+        if parent == nil, notebooks.isEmpty {
+            restoreFromCloudIfNeeded(force: true)
+        }
+    }
+
+    /// On a new iPad or after reinstall, SwiftData starts with an empty local
+    /// store and imports the user's private CloudKit data asynchronously. Keep
+    /// refreshing for a short window so synced notebooks appear automatically
+    /// instead of leaving the dashboard stuck on the empty state.
+    func restoreFromCloudIfNeeded(force: Bool = false) {
+        guard parent == nil, !isRestoringFromCloud else { return }
+        guard force || !hasCheckedCloudRestore else { return }
+        hasCheckedCloudRestore = true
+        reload()
+        guard notebooks.isEmpty else {
+            isRestoringFromCloud = false
+            return
+        }
+
+        cloudRestoreTask?.cancel()
+        isRestoringFromCloud = true
+        cloudRestoreTask = Task { @MainActor in
+            for _ in 0..<45 {
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                reload()
+                if !notebooks.isEmpty {
+                    isRestoringFromCloud = false
+                    return
+                }
+            }
+            isRestoringFromCloud = false
+        }
     }
 
     @discardableResult
     func createNotebook(title: String) -> Notebook? {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalName = name.isEmpty ? "Untitled Notebook" : name
+        do {
+            let notebook = try repository.create(title: finalName, parent: parent)
+            reload()
+            return notebook
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    @discardableResult
+    func createSubNotebook(title: String, under parent: Notebook) -> Notebook? {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalName = name.isEmpty ? "Untitled Notebook" : name
         do {
