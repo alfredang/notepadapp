@@ -118,12 +118,16 @@ final class PageContainerView: UIView {
 
     /// Refreshes the bottom-right "Page N · date time" stamp.
     func updateFooter() {
-        let show = UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
-        footerLabel.isHidden = !show
+        let showPageNumber = UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
+        let showDateTime = UserDefaults.standard.object(forKey: "showDateTimeStamp") as? Bool ?? true
+        let parts = [
+            showPageNumber ? "Page \(page.pageIndex + 1)" : nil,
+            showDateTime ? PageContainerView.footerDateFormatter.string(from: page.updatedAt) : nil
+        ].compactMap { $0 }
+        footerLabel.isHidden = parts.isEmpty
         let onDark = page.paperSurface.isDark
         footerLabel.textColor = (onDark ? UIColor.white : UIColor.black).withAlphaComponent(0.45)
-        let date = PageContainerView.footerDateFormatter.string(from: page.updatedAt)
-        footerLabel.text = "Page \(page.pageIndex + 1)  ·  \(date)"
+        footerLabel.text = parts.joined(separator: "  ·  ")
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

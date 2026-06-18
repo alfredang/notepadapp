@@ -17,6 +17,7 @@ final class AppSettings {
     var defaultPaperPatternRaw: String = PaperPattern.blank.rawValue
     var defaultPaperLayoutRaw: String = PaperLayout.portrait.rawValue
     var showPageNumbers: Bool = true
+    var showDateTimeStamp: Bool = true
 
     init(
         key: String = "primary",
@@ -29,7 +30,8 @@ final class AppSettings {
         defaultPaperSurfaceRaw: String = PaperSurface.blackboard.rawValue,
         defaultPaperPatternRaw: String = PaperPattern.blank.rawValue,
         defaultPaperLayoutRaw: String = PaperLayout.portrait.rawValue,
-        showPageNumbers: Bool = true
+        showPageNumbers: Bool = true,
+        showDateTimeStamp: Bool = true
     ) {
         self.key = key
         self.createdAt = createdAt
@@ -42,6 +44,7 @@ final class AppSettings {
         self.defaultPaperPatternRaw = defaultPaperPatternRaw
         self.defaultPaperLayoutRaw = defaultPaperLayoutRaw
         self.showPageNumbers = showPageNumbers
+        self.showDateTimeStamp = showDateTimeStamp
     }
 
     func touch(_ date: Date = .now) {
@@ -79,7 +82,8 @@ enum AppSettingsSync {
             defaultPaperSurfaceRaw: AppDefaults.paperSurface.rawValue,
             defaultPaperPatternRaw: AppDefaults.paperPattern.rawValue,
             defaultPaperLayoutRaw: AppDefaults.paperLayout.rawValue,
-            showPageNumbers: UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
+            showPageNumbers: UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true,
+            showDateTimeStamp: UserDefaults.standard.object(forKey: "showDateTimeStamp") as? Bool ?? true
         )
         context.insert(settings)
         try? context.save()
@@ -115,6 +119,7 @@ enum AppSettingsSync {
         UserDefaults.standard.set(settings.defaultPaperPatternRaw, forKey: AppDefaults.patternKey)
         UserDefaults.standard.set(settings.defaultPaperLayoutRaw, forKey: AppDefaults.layoutKey)
         UserDefaults.standard.set(settings.showPageNumbers, forKey: "showPageNumbers")
+        UserDefaults.standard.set(settings.showDateTimeStamp, forKey: "showDateTimeStamp")
     }
 
     private static var hasLocalDefaultsToMigrate: Bool {
@@ -126,6 +131,7 @@ enum AppSettingsSync {
             || UserDefaults.standard.object(forKey: AppDefaults.patternKey) != nil
             || UserDefaults.standard.object(forKey: AppDefaults.layoutKey) != nil
             || UserDefaults.standard.object(forKey: "showPageNumbers") != nil
+            || UserDefaults.standard.object(forKey: "showDateTimeStamp") != nil
     }
 }
 

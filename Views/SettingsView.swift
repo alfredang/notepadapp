@@ -44,6 +44,7 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("Show page numbers", isOn: settingBinding(\.showPageNumbers))
+                    Toggle("Show date and time stamp", isOn: settingBinding(\.showDateTimeStamp))
                 }
                 Section("Default Template") {
                     Text("Applied to new notebooks. Existing notebooks keep their template.")
