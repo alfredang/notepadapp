@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var settingsRecords: [AppSettings]
+    private let defaultPatterns: [PaperPattern] = [.blank, .grid, .lined]
 
     private var settings: AppSettings {
         if let settings = AppSettingsSync.current(from: settingsRecords) {
@@ -48,13 +49,18 @@ struct SettingsView: View {
                     Text("Applied to new notebooks. Existing notebooks keep their template.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Picker("Mode", selection: settingBinding(\.defaultPaperLayoutRaw)) {
+                        ForEach(PaperLayout.allCases) { layout in
+                            Text(layout.displayName).tag(layout.rawValue)
+                        }
+                    }
                     Picker("Surface", selection: settingBinding(\.defaultPaperSurfaceRaw)) {
                         ForEach(PaperSurface.allCases) { surface in
                             Text(surface.displayName).tag(surface.rawValue)
                         }
                     }
                     Picker("Pattern", selection: settingBinding(\.defaultPaperPatternRaw)) {
-                        ForEach(PaperPattern.allCases) { pattern in
+                        ForEach(defaultPatterns) { pattern in
                             Text(pattern.displayName).tag(pattern.rawValue)
                         }
                     }

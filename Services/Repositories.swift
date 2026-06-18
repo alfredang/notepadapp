@@ -70,7 +70,7 @@ final class NotebookRepository: NotebookRepositoryProtocol {
         // blackboard / blank if the user hasn't changed it).
         notebook.paperSurface = AppDefaults.paperSurface
         notebook.paperPattern = AppDefaults.paperPattern
-        notebook.paperLayout = .portrait
+        notebook.paperLayout = AppDefaults.paperLayout
         context.insert(notebook)
         let page = Page(pageIndex: 0,
                         surface: notebook.paperSurface,
@@ -179,7 +179,7 @@ final class PageRepository: PageRepositoryProtocol {
 
     func delete(_ page: Page, from notebook: Notebook) throws(StorageError) {
         context.delete(page)
-        var pages = notebook.orderedPages.filter { $0.id != page.id }
+        let pages = notebook.orderedPages.filter { $0.id != page.id }
         reindex(pages)
         notebook.pages = pages
         notebook.touch()

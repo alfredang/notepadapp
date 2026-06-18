@@ -15,6 +15,7 @@ final class AppSettings {
     var defaultEraserWidth: Double = 20
     var defaultPaperSurfaceRaw: String = PaperSurface.blackboard.rawValue
     var defaultPaperPatternRaw: String = PaperPattern.blank.rawValue
+    var defaultPaperLayoutRaw: String = PaperLayout.portrait.rawValue
     var showPageNumbers: Bool = true
 
     init(
@@ -27,6 +28,7 @@ final class AppSettings {
         defaultEraserWidth: Double = 20,
         defaultPaperSurfaceRaw: String = PaperSurface.blackboard.rawValue,
         defaultPaperPatternRaw: String = PaperPattern.blank.rawValue,
+        defaultPaperLayoutRaw: String = PaperLayout.portrait.rawValue,
         showPageNumbers: Bool = true
     ) {
         self.key = key
@@ -38,6 +40,7 @@ final class AppSettings {
         self.defaultEraserWidth = defaultEraserWidth
         self.defaultPaperSurfaceRaw = defaultPaperSurfaceRaw
         self.defaultPaperPatternRaw = defaultPaperPatternRaw
+        self.defaultPaperLayoutRaw = defaultPaperLayoutRaw
         self.showPageNumbers = showPageNumbers
     }
 
@@ -75,6 +78,7 @@ enum AppSettingsSync {
             defaultEraserWidth: AppDefaults.eraserWidth.doubleValue,
             defaultPaperSurfaceRaw: AppDefaults.paperSurface.rawValue,
             defaultPaperPatternRaw: AppDefaults.paperPattern.rawValue,
+            defaultPaperLayoutRaw: AppDefaults.paperLayout.rawValue,
             showPageNumbers: UserDefaults.standard.object(forKey: "showPageNumbers") as? Bool ?? true
         )
         context.insert(settings)
@@ -109,6 +113,7 @@ enum AppSettingsSync {
         UserDefaults.standard.set(settings.defaultEraserWidth, forKey: AppDefaults.eraserWidthKey)
         UserDefaults.standard.set(settings.defaultPaperSurfaceRaw, forKey: AppDefaults.surfaceKey)
         UserDefaults.standard.set(settings.defaultPaperPatternRaw, forKey: AppDefaults.patternKey)
+        UserDefaults.standard.set(settings.defaultPaperLayoutRaw, forKey: AppDefaults.layoutKey)
         UserDefaults.standard.set(settings.showPageNumbers, forKey: "showPageNumbers")
     }
 
@@ -119,6 +124,7 @@ enum AppSettingsSync {
             || UserDefaults.standard.object(forKey: AppDefaults.eraserWidthKey) != nil
             || UserDefaults.standard.object(forKey: AppDefaults.surfaceKey) != nil
             || UserDefaults.standard.object(forKey: AppDefaults.patternKey) != nil
+            || UserDefaults.standard.object(forKey: AppDefaults.layoutKey) != nil
             || UserDefaults.standard.object(forKey: "showPageNumbers") != nil
     }
 }

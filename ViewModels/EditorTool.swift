@@ -65,6 +65,7 @@ enum AppDefaults {
     static let eraserWidthKey = "defaultEraserWidth"
     static let surfaceKey = "defaultPaperSurface"
     static let patternKey = "defaultPaperPattern"
+    static let layoutKey = "defaultPaperLayout"
 
     static var penWidth: CGFloat {
         let v = UserDefaults.standard.double(forKey: penWidthKey)
@@ -81,6 +82,10 @@ enum AppDefaults {
     static var paperPattern: PaperPattern {
         UserDefaults.standard.string(forKey: patternKey)
             .flatMap(PaperPattern.init(rawValue:)) ?? .blank
+    }
+    static var paperLayout: PaperLayout {
+        UserDefaults.standard.string(forKey: layoutKey)
+            .flatMap(PaperLayout.init(rawValue:)) ?? .portrait
     }
 }
 
