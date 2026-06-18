@@ -22,7 +22,7 @@ struct NotePadApp: App {
 
     init() {
         do {
-            let schema = Schema([Notebook.self, Page.self, AudioNote.self])
+            let schema = Schema([Notebook.self, Page.self, AudioNote.self, AppSettings.self])
             // Back the store with the user's private CloudKit database so every
             // notebook and page auto-saves and syncs across their devices.
             let configuration = ModelConfiguration(

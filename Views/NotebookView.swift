@@ -27,7 +27,7 @@ struct NotebookView: View {
     init(notebook: Notebook) {
         self.notebook = notebook
         // Build dependencies from the shared context.
-        let context = notebook.modelContext ?? ModelContext(try! ModelContainer(for: Notebook.self, Page.self, AudioNote.self))
+        let context = notebook.modelContext ?? ModelContext(try! ModelContainer(for: Notebook.self, Page.self, AudioNote.self, AppSettings.self))
         _notebookVM = State(initialValue: NotebookViewModel(
             notebook: notebook,
             repository: PageRepository(context: context)
