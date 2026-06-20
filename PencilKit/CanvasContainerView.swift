@@ -115,6 +115,10 @@ struct CanvasContainerView: UIViewRepresentable {
         private var requestedNewPage = false
         private var requestedNewPageTop = false
         private var thumbnailRefreshTask: Task<Void, Never>?
+        /// Re-enables scrolling a short moment after the Pencil lifts, so a resting
+        /// palm can't pan the page during the brief gaps between strokes while
+        /// writing. Cancelled the instant a new stroke begins.
+        private var scrollReEnableWork: DispatchWorkItem?
 
         init(editor: EditorViewModel, autoSave: AutoSaveService, controller: CanvasController) {
             self.editor = editor
@@ -236,28 +240,19 @@ struct CanvasContainerView: UIViewRepresentable {
 
         func fitToPageIfNeeded() { handleBoundsChange() }
 
-        /// The zoom scale used to auto-fit the page. Fills the width when the
-        /// page is taller than the viewport (portrait A4 scrolls); otherwise fits
-        /// a single page fully on screen (landscape pages / landscape device), so
-        /// the whole page is visible and centered instead of overflowing.
+        /// The zoom scale used to auto-fit the page: always fill the full width of
+        /// the viewport. A page taller than the viewport simply scrolls vertically
+        /// (the natural notebook feel), rather than shrinking to fit the whole page
+        /// with side margins.
         private func fitWidthScale() -> CGFloat? {
             guard let scrollView, let pv = pageViews.first else { return nil }
             let bounds = scrollView.bounds.size
             guard bounds.width > 1, bounds.height > 1 else { return nil }
             let sidePadding: CGFloat = 16   // 8pt leading + 8pt trailing
-            let verticalPadding: CGFloat = 32
 
-            let page = pv.page
-            let pageWidth = page.canvasSize.width
-            // Height of a single page unit (ignore the extended "infinite" height).
-            let unitHeight = page.canvasSize.height / CGFloat(max(1, page.heightUnits))
-
+            let pageWidth = pv.page.canvasSize.width
             let widthScale = (bounds.width - sidePadding) / pageWidth
-            let heightScale = (bounds.height - verticalPadding) / unitHeight
-            // Fit the whole page when it would otherwise be taller than the
-            // viewport once width-fitted (landscape page or landscape device).
-            let scale = min(widthScale, heightScale)
-            return max(scrollView.minimumZoomScale, min(scrollView.maximumZoomScale, scale))
+            return max(scrollView.minimumZoomScale, min(scrollView.maximumZoomScale, widthScale))
         }
 
         private func applyFit() {
@@ -562,12 +557,20 @@ struct CanvasContainerView: UIViewRepresentable {
                 canvas.isDrawingStroke = true
                 canvas.straightenArmed = false
             }
+            scrollReEnableWork?.cancel()   // keep scrolling off through this stroke
             scrollView?.isScrollEnabled = false
         }
 
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
             (canvasView as? StrokeCanvasView)?.isDrawingStroke = false
-            applyTool() // restores scrolling appropriately for the current tool
+            // Don't re-enable scrolling immediately: while writing, the Pencil lifts
+            // for a fraction of a second between strokes and the palm is still
+            // resting. Wait a short grace period (cancelled if a new stroke starts)
+            // so the palm can't pan the page mid-writing.
+            scrollReEnableWork?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.applyTool() }
+            scrollReEnableWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
         }
 
         // MARK: Hold-to-straighten
