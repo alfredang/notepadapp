@@ -46,6 +46,15 @@ struct DashboardView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 20)]
 
+    /// Marketing version + build, shown in the footer so the running version is
+    /// visible at a glance (e.g. "v1.4 (9)").
+    static var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? ""
+        let build = info?["CFBundleVersion"] as? String ?? ""
+        return build.isEmpty ? "v\(version)" : "v\(version) (\(build))"
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             content
@@ -91,12 +100,15 @@ struct DashboardView: View {
         }
         .searchable(text: $viewModel.searchText, prompt: "Search notebooks & handwriting")
         .safeAreaInset(edge: .bottom) {
-            Text("Powered by Tertiary Infotech Academy Pte Ltd")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(.bar)
+            VStack(spacing: 2) {
+                Text("Powered by Tertiary Infotech Academy Pte Ltd")
+                Text("NotePad \(Self.appVersion)")
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(.bar)
         }
         .toolbar { toolbarContent }
         .overlay(alignment: .bottom) { syncToast }
