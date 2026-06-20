@@ -75,8 +75,11 @@ Academy Pte Ltd**.
 - **Infinite canvas** — extend a page in A4-height increments.
 
 ### Organization & sync
+- **Bottom navigation** — a tab bar with **Notebooks**, **Favorites** (starred
+  notebooks), **Feedback** (message support on WhatsApp), and **About**.
 - **Dashboard** — grid of notebooks with live cover thumbnail, page count,
   dates, instant search (incl. handwriting), and sort.
+- **Favorites** — star any notebook from its card to pin it in the Favorites tab.
 - **Tags** — assign multiple tags (e.g. Physics, Math, Computing) to a notebook;
   filter the dashboard by tag. Tags show as chips under the title.
 - **Nested notebooks** — sub-notebooks via a self-referential relationship.

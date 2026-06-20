@@ -11,6 +11,7 @@ struct NotebookCard: View {
     var onAddSubNotebook: () -> Void
     var onShare: () -> Void
     var onEditTags: () -> Void
+    var onToggleFavorite: () -> Void
 
     @State private var isRenaming = false
     @State private var draftTitle = ""
@@ -20,6 +21,7 @@ struct NotebookCard: View {
             Button(action: onOpen) {
                 NotebookCoverView(notebook: notebook)
                     .softShadow()
+                    .overlay(alignment: .topTrailing) { favoriteBadge }
             }
             .buttonStyle(.plain)
             .hoverEffect(.lift)
@@ -72,6 +74,10 @@ struct NotebookCard: View {
         )
         .contextMenu {
             Button { onOpen() } label: { Label("Open", systemImage: "book") }
+            Button { onToggleFavorite() } label: {
+                Label(notebook.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: notebook.isFavorite ? "star.slash" : "star")
+            }
             if notebook.orderedChildren.count > 0 {
                 Button { onOpenFolder() } label: { Label("Open Sub-Notebooks", systemImage: "folder") }
             }
@@ -87,6 +93,23 @@ struct NotebookCard: View {
                 Button(role: .destructive) { onDelete() } label: { Label("Delete", systemImage: "trash") }
             }
         }
+    }
+
+    /// A star button in the cover's top-right corner: filled when favorited,
+    /// a subtle outline otherwise so it stays discoverable as a tap target.
+    @ViewBuilder
+    private var favoriteBadge: some View {
+        Button(action: onToggleFavorite) {
+            Image(systemName: notebook.isFavorite ? "star.fill" : "star")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(notebook.isFavorite ? Color.yellow : Color.white)
+                .padding(7)
+                .background(.black.opacity(0.28), in: Circle())
+                .shadow(radius: 2, y: 1)
+        }
+        .buttonStyle(.plain)
+        .padding(8)
+        .accessibilityLabel(notebook.isFavorite ? "Remove \(notebook.title) from Favorites" : "Add \(notebook.title) to Favorites")
     }
 
     private func beginRename() {

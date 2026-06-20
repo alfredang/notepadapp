@@ -5,8 +5,11 @@ import SwiftData
 @MainActor
 protocol NotebookRepositoryProtocol {
     func allTopLevel(sortedBy sort: NotebookSort) throws(StorageError) -> [Notebook]
+    /// All starred notebooks, regardless of nesting depth.
+    func allFavorites(sortedBy sort: NotebookSort) throws(StorageError) -> [Notebook]
     @discardableResult
     func create(title: String, parent: Notebook?) throws(StorageError) -> Notebook
+    func setFavorite(_ notebook: Notebook, _ isFavorite: Bool) throws(StorageError)
     func rename(_ notebook: Notebook, to title: String) throws(StorageError)
     func delete(_ notebook: Notebook) throws(StorageError)
     @discardableResult
@@ -60,6 +63,25 @@ final class NotebookRepository: NotebookRepositoryProtocol {
             throw StorageError.saveFailed(error.localizedDescription)
         }
         return notebooks.sorted(by: sort.comparator)
+    }
+
+    func allFavorites(sortedBy sort: NotebookSort) throws(StorageError) -> [Notebook] {
+        let descriptor = FetchDescriptor<Notebook>(
+            predicate: #Predicate { $0.isFavorite }
+        )
+        let notebooks: [Notebook]
+        do {
+            notebooks = try context.fetch(descriptor)
+        } catch {
+            throw StorageError.saveFailed(error.localizedDescription)
+        }
+        return notebooks.sorted(by: sort.comparator)
+    }
+
+    func setFavorite(_ notebook: Notebook, _ isFavorite: Bool) throws(StorageError) {
+        notebook.isFavorite = isFavorite
+        notebook.touch()
+        try save()
     }
 
     @discardableResult

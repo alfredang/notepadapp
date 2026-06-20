@@ -9,6 +9,8 @@ final class DashboardViewModel {
     private let repository: any NotebookRepositoryProtocol
     /// When set, the view model browses this notebook's sub-notebooks instead of top-level.
     private let parent: Notebook?
+    /// When true, lists starred notebooks (any depth) instead of a folder level.
+    let favoritesOnly: Bool
 
     var notebooks: [Notebook] = []
     var sort: NotebookSort = .lastModified {
@@ -29,9 +31,10 @@ final class DashboardViewModel {
         Array(Set(notebooks.flatMap { $0.tags })).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
-    init(repository: any NotebookRepositoryProtocol, parent: Notebook? = nil) {
+    init(repository: any NotebookRepositoryProtocol, parent: Notebook? = nil, favoritesOnly: Bool = false) {
         self.repository = repository
         self.parent = parent
+        self.favoritesOnly = favoritesOnly
         reload()
     }
 
@@ -69,11 +72,23 @@ final class DashboardViewModel {
 
     func reload() {
         do {
-            if let parent {
+            if favoritesOnly {
+                notebooks = try repository.allFavorites(sortedBy: sort)
+            } else if let parent {
                 notebooks = parent.orderedChildren.sorted(by: sort.comparator)
             } else {
                 notebooks = try repository.allTopLevel(sortedBy: sort)
             }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Stars / unstars a notebook and refreshes the listing.
+    func toggleFavorite(_ notebook: Notebook) {
+        do {
+            try repository.setFavorite(notebook, !notebook.isFavorite)
+            reload()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -103,7 +118,7 @@ final class DashboardViewModel {
     /// pass *completes with nothing to restore* or the device has no iCloud
     /// account, so the user never stares at an endless spinner.
     func restoreFromCloudIfNeeded(force: Bool = false) {
-        guard parent == nil, !isRestoringFromCloud else { return }
+        guard parent == nil, !favoritesOnly, !isRestoringFromCloud else { return }
         guard force || !hasCheckedCloudRestore else { return }
         hasCheckedCloudRestore = true
         reload()

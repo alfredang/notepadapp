@@ -13,6 +13,9 @@ final class Notebook {
     /// Manual ordering on the dashboard / within a parent.
     var sortIndex: Int = 0
 
+    /// Starred by the user; surfaced in the Favorites tab. Defaulted for CloudKit.
+    var isFavorite: Bool = false
+
     /// Free-form tags for grouping/filtering (e.g. Physics, Math, Computing).
     /// Defaulted for CloudKit compatibility.
     var tags: [String] = []

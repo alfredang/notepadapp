@@ -91,7 +91,8 @@ struct DashboardView: View {
                                 }
                             },
                             onShare: { shareItem = .notebookArchive(notebook) },
-                            onEditTags: { taggingNotebook = notebook }
+                            onEditTags: { taggingNotebook = notebook },
+                            onToggleFavorite: { viewModel.toggleFavorite(notebook) }
                         )
                     }
                 }
@@ -99,17 +100,6 @@ struct DashboardView: View {
             }
         }
         .searchable(text: $viewModel.searchText, prompt: "Search notebooks & handwriting")
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 2) {
-                Text("Powered by Tertiary Infotech Academy Pte Ltd")
-                Text("NotePad \(Self.appVersion)")
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
         .toolbar { toolbarContent }
         .overlay(alignment: .bottom) { syncToast }
         .animation(.spring(duration: 0.3), value: syncFeedback)
@@ -272,16 +262,18 @@ struct DashboardView: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingImporter = true
-            } label: {
-                Label("Import Notebook", systemImage: "square.and.arrow.down")
+        if !viewModel.favoritesOnly {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingImporter = true
+                } label: {
+                    Label("Import Notebook", systemImage: "square.and.arrow.down")
+                }
+                .disabled(!DeviceKind.isPad)
             }
-            .disabled(!DeviceKind.isPad)
         }
         // Creating notebooks is iPad-only; iPhone is view-only.
-        if DeviceKind.isPad {
+        if DeviceKind.isPad && !viewModel.favoritesOnly {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingNewNotebook = true
@@ -295,7 +287,13 @@ struct DashboardView: View {
 
     private var emptyState: some View {
         Group {
-            if viewModel.isRestoringFromCloud {
+            if viewModel.favoritesOnly {
+                ContentUnavailableView {
+                    Label("No Favorites", systemImage: "star")
+                } description: {
+                    Text("Tap the star on a notebook to add it here for quick access.")
+                }
+            } else if viewModel.isRestoringFromCloud {
                 VStack(spacing: 14) {
                     ProgressView()
                     ContentUnavailableView {
