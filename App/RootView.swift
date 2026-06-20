@@ -11,23 +11,34 @@ struct RootView: View {
     var body: some View {
         TabView {
             DashboardView(viewModel: DashboardViewModel(repository: NotebookRepository(context: modelContext)))
-                .tabItem { Label("Notebooks", systemImage: "books.vertical") }
+                .tabItem { tabLabel("Notebooks", "books.vertical") }
 
             DashboardView(
                 viewModel: DashboardViewModel(repository: NotebookRepository(context: modelContext), favoritesOnly: true),
                 title: "Favorites"
             )
-            .tabItem { Label("Favorites", systemImage: "star") }
+            .tabItem { tabLabel("Favorites", "star") }
 
             FeedbackView()
-                .tabItem { Label("Feedback", systemImage: "bubble.left.and.bubble.right") }
+                .tabItem { tabLabel("Feedback", "bubble.left.and.bubble.right") }
 
             AboutView()
-                .tabItem { Label("About", systemImage: "info.circle") }
+                .tabItem { tabLabel("About", "info.circle") }
         }
         .task { syncSettingsToLocalDefaults() }
         .onChange(of: settingsRecords.map(\.updatedAt)) { _, _ in
             syncSettingsToLocalDefaults()
+        }
+    }
+
+    /// Tab bar item. On iPad the bar floats at the top, so show icons only for a
+    /// neater, more minimalist look; iPhone keeps the labelled bottom tabs.
+    @ViewBuilder
+    private func tabLabel(_ title: String, _ systemImage: String) -> some View {
+        if DeviceKind.isPad {
+            Image(systemName: systemImage).accessibilityLabel(title)
+        } else {
+            Label(title, systemImage: systemImage)
         }
     }
 

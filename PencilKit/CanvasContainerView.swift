@@ -432,6 +432,13 @@ struct CanvasContainerView: UIViewRepresentable {
             for pv in pageViews {
                 pv.canvas.tool = editor.pkTool
                 pv.canvas.drawingPolicy = editor.drawingPolicy
+                // Belt-and-suspenders: pin the drawing gesture's accepted touch
+                // types too. `drawingPolicy = .pencilOnly` alone stops rejecting
+                // the finger once palm-rejection disables the scroll pan (which
+                // used to claim every finger touch first), letting a finger draw.
+                pv.canvas.drawingGestureRecognizer.allowedTouchTypes = editor.allowsFingerDrawing
+                    ? [UITouch.TouchType.direct, .pencil].map { NSNumber(value: $0.rawValue) }
+                    : [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
                 // In selection mode the overlay owns the lasso (it can recolor ink),
                 // so the canvas's own drawing/lasso gesture is disabled.
                 pv.canvas.drawingGestureRecognizer.isEnabled = !(isOverlayDraw || isSelection)
