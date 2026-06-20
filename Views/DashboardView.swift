@@ -132,15 +132,19 @@ struct DashboardView: View {
             notebookToOpenAfterCreate = nil
             path.append(DashboardRoute.editor(notebook))
         }
-        .alert("New Notebook", isPresented: $showingNewNotebook) {
-            TextField("Notebook name", text: $newNotebookName)
-            Button("Create") {
+        // A sheet (not an .alert) so a long name can't push the Create button
+        // behind the keyboard — Create lives in the nav bar and is always reachable.
+        .sheet(isPresented: $showingNewNotebook) {
+            NewNotebookSheet(name: $newNotebookName) {
                 if let notebook = viewModel.createNotebook(title: newNotebookName) {
                     notebookToOpenAfterCreate = notebook
                 }
                 newNotebookName = ""
+                showingNewNotebook = false
+            } onCancel: {
+                newNotebookName = ""
+                showingNewNotebook = false
             }
-            Button("Cancel", role: .cancel) { newNotebookName = "" }
         }
         .alert(
             "Delete \(pendingDelete?.title ?? "")?",
@@ -330,6 +334,42 @@ struct DashboardView: View {
             }
         }
         .padding(.top, 80)
+    }
+}
+
+/// Sheet for naming a new notebook. Replaces the old `.alert` TextField, whose
+/// Create button could slide behind the keyboard with longer names. Here Create
+/// sits in the navigation bar and is always tappable.
+private struct NewNotebookSheet: View {
+    @Binding var name: String
+    let onCreate: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var focused: Bool
+
+    private var trimmed: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Notebook name", text: $name)
+                    .focused($focused)
+                    .submitLabel(.done)
+                    .onSubmit { if !trimmed.isEmpty { onCreate() } }
+            }
+            .navigationTitle("New Notebook")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") { onCreate() }
+                        .disabled(trimmed.isEmpty)
+                }
+            }
+            .onAppear { focused = true }
+        }
+        .presentationDetents([.medium])
     }
 }
 
