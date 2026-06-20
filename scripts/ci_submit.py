@@ -309,9 +309,17 @@ def attach_build(tok, aid, vid, build_number):
     target = next((b for b in d["data"] if str(b["attributes"]["version"]) == str(build_number)), None)
     if not target:
         sys.exit(f"build {build_number} not found")
-    s, _ = call("PATCH", f"/v1/appStoreVersions/{vid}/relationships/build",
-                {"data": {"type": "builds", "id": target["id"]}}, tok)
-    print(f"attached build {build_number}: {s}", flush=True)
+    # Retry on 409: right after cancel_active() frees the version the cancel is
+    # still async-settling and the relationship PATCH 409s. A single attempt would
+    # silently leave the PREVIOUS build attached and submit the wrong binary.
+    for attempt in range(20):
+        s, b = call("PATCH", f"/v1/appStoreVersions/{vid}/relationships/build",
+                    {"data": {"type": "builds", "id": target["id"]}}, tok)
+        if s < 300:
+            print(f"attached build {build_number}: {s}", flush=True)
+            return
+        time.sleep(6)
+    sys.exit(f"could not attach build {build_number}: {b[:300]}")
 
 
 def submit_for_review(tok, aid, vid):
