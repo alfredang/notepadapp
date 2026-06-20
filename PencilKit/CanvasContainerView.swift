@@ -262,23 +262,14 @@ struct CanvasContainerView: UIViewRepresentable {
             centerContent()
         }
 
-        /// Finger double-tap: zoom into the tapped page, or back out to fit.
+        /// Finger double-tap: auto-fit the page to the full viewport width.
         /// Scoped to drawing tools so it doesn't clash with the overlay's
         /// double-tap-to-edit-text in selection/shape modes.
         @objc func handleDoubleTapZoom(_ gesture: UITapGestureRecognizer) {
             guard !editor.tool.isOverlayTool,
-                  let scrollView, let stack, let fit = fitWidthScale() else { return }
-            if scrollView.zoomScale > fit * 1.05 {
-                scrollView.setZoomScale(fit, animated: true)
-            } else {
-                let target = min(scrollView.maximumZoomScale, fit * 2)
-                let center = gesture.location(in: stack)
-                let size = CGSize(width: scrollView.bounds.width / target,
-                                  height: scrollView.bounds.height / target)
-                let rect = CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
-                                  width: size.width, height: size.height)
-                scrollView.zoom(to: rect, animated: true)
-            }
+                  let scrollView, let fit = fitWidthScale() else { return }
+            scrollView.setZoomScale(fit, animated: true)
+            editor.zoomScale = fit
         }
 
         /// The page view occupying the most of the scroll view's viewport.
