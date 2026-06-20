@@ -96,9 +96,12 @@ final class DashboardViewModel {
     }
 
     /// On a new iPad or after reinstall, SwiftData starts with an empty local
-    /// store and imports the user's private CloudKit data asynchronously. Keep
-    /// refreshing for a short window so synced notebooks appear automatically
-    /// instead of leaving the dashboard stuck on the empty state.
+    /// store and imports the user's private CloudKit data asynchronously. Rather
+    /// than blindly polling for a fixed window, drive the "Restoring…" state from
+    /// CloudKit's real import events (`CloudSyncMonitor`): surface notebooks the
+    /// instant the first batch lands, and — crucially — stop as soon as an import
+    /// pass *completes with nothing to restore* or the device has no iCloud
+    /// account, so the user never stares at an endless spinner.
     func restoreFromCloudIfNeeded(force: Bool = false) {
         guard parent == nil, !isRestoringFromCloud else { return }
         guard force || !hasCheckedCloudRestore else { return }
@@ -109,16 +112,37 @@ final class DashboardViewModel {
             return
         }
 
+        let monitor = CloudSyncMonitor.shared
+        monitor.refreshAccountStatus()
+        // No iCloud account on this device → nothing will ever arrive. Skip the
+        // spinner and let the empty state prompt the user to sign in.
+        guard !monitor.iCloudUnavailable else {
+            isRestoringFromCloud = false
+            return
+        }
+
         cloudRestoreTask?.cancel()
         isRestoringFromCloud = true
         cloudRestoreTask = Task { @MainActor in
-            for _ in 0..<45 {
-                try? await Task.sleep(for: .seconds(2))
+            let importsAtStart = monitor.completedImports
+            var lastSeenImports = importsAtStart
+            var quietTicks = 0                 // seconds since the last import pass
+            // Hard cap (~2 min) so a wedged sync can't spin forever.
+            for _ in 0..<120 {
+                try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
                 reload()
-                if !notebooks.isEmpty {
-                    isRestoringFromCloud = false
-                    return
+                if !notebooks.isEmpty { break }            // data arrived
+                if monitor.iCloudUnavailable { break }      // account went away
+                if monitor.completedImports != lastSeenImports {
+                    lastSeenImports = monitor.completedImports
+                    quietTicks = 0                          // fresh activity — keep waiting
+                } else if lastSeenImports > importsAtStart {
+                    // An import pass finished and brought no notebooks. Give a short
+                    // grace for follow-up batches, then conclude there's nothing to
+                    // restore and fall back to the normal empty state.
+                    quietTicks += 1
+                    if quietTicks >= 8 { break }
                 }
             }
             isRestoringFromCloud = false

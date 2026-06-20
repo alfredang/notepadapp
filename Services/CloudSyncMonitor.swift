@@ -1,5 +1,6 @@
 import Foundation
 import CoreData
+import CloudKit
 import Observation
 
 /// Observes the SwiftData store's underlying CloudKit mirroring events so the UI
@@ -22,10 +23,25 @@ final class CloudSyncMonitor {
     /// End time of the last successful *import* (remote → local). Changes here
     /// signal the UI to re-fetch and surface newly synced data.
     private(set) var lastImportDate: Date?
+    /// Number of import cycles that have completed (successfully) this session.
+    /// Restore logic watches this to know when CloudKit has *finished* a fetch
+    /// pass — distinguishing "still importing" from "imported, nothing arrived".
+    private(set) var completedImports = 0
     /// Human-readable description of the last sync error, or nil when healthy.
     private(set) var lastErrorMessage: String?
+    /// The user's iCloud account state for our container. `.couldNotDetermine`
+    /// until the first `refreshAccountStatus()` resolves.
+    private(set) var accountStatus: CKAccountStatus = .couldNotDetermine
+
+    /// True only once we positively know the user has no usable iCloud account,
+    /// so the UI can stop "Restoring…" and prompt them to sign in instead of
+    /// spinning forever on a device that can never receive data.
+    var iCloudUnavailable: Bool {
+        accountStatus == .noAccount || accountStatus == .restricted
+    }
 
     private var observer: NSObjectProtocol?
+    private let containerID = "iCloud.com.tertiaryinfotech.notepadapp"
 
     private init() {
         // The event isn't Sendable, so extract the few primitives we need inside
@@ -57,7 +73,18 @@ final class CloudSyncMonitor {
             lastErrorMessage = errorDesc
         } else {
             lastErrorMessage = nil
-            if isImport { lastImportDate = endDate }
+            if isImport {
+                lastImportDate = endDate
+                completedImports += 1
+            }
+        }
+    }
+
+    /// Asks CloudKit whether the user is signed in to iCloud for our container.
+    /// Cheap to call repeatedly (on launch / foreground / before a restore).
+    func refreshAccountStatus() {
+        CKContainer(identifier: containerID).accountStatus { status, _ in
+            Task { @MainActor in CloudSyncMonitor.shared.accountStatus = status }
         }
     }
 }

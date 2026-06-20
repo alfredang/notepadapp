@@ -1,0 +1,107 @@
+name: iOS release
+
+# Auto build + sign + upload + submit on every push to main. Requires these repo secrets:
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_API_PRIVATE_KEY (the .p8 contents)
+#   DIST_CERT_P12_BASE64, DIST_CERT_PASSWORD, PROVISIONING_PROFILE_BASE64
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - ".github/**"
+      - "scripts/**"
+      - "ci/screenshots/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_API_PRIVATE_KEY: ${{ secrets.ASC_API_PRIVATE_KEY }}
+      ASC_BUNDLE_ID: com.tertiaryinfotech.notepadapp
+      TEAM_ID: GU9WTSTX9M
+      SCHEME: NotePadApp
+      PROJECT: NotePadApp.xcodeproj
+      PROFILE_NAME: NotePad App Store 1.1
+      SIGN_IDENTITY: Apple Distribution
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen & generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Select Xcode 26 (App Store requires the iOS 26 SDK)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps
+        run: pip install --quiet cryptography
+
+      - name: Import signing certificate & provisioning profile
+        env:
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          CERT="$RUNNER_TEMP/dist.p12"; PROFILE="$RUNNER_TEMP/profile.mobileprovision"
+          KEYCHAIN="$RUNNER_TEMP/app.keychain-db"
+          echo "$DIST_CERT_P12_BASE64" | base64 --decode > "$CERT"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE"
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security import "$CERT" -P "$DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -k "" "$KEYCHAIN"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE" "$HOME/Library/MobileDevice/Provisioning Profiles/ci.mobileprovision"
+
+      - name: Determine version & build number
+        id: ver
+        run: |
+          VER=$(python3 scripts/ci_submit.py next-version)
+          BUILD=$(date -u +%y%m%d%H%M)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
+      - name: Archive
+        run: |
+          xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=$SIGN_IDENTITY" \
+            "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" DEVELOPMENT_TEAM=$TEAM_ID \
+            MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} \
+            clean archive
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist ExportOptions.plist
+
+      - name: Upload to App Store Connect
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$ASC_API_PRIVATE_KEY" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          IPA=$(ls "$RUNNER_TEMP/export/"*.ipa | head -1)
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Wait for processing
+        run: python3 scripts/ci_submit.py wait-build --build ${{ steps.ver.outputs.build }}
+
+      - name: Attach build & submit for review
+        run: python3 scripts/ci_submit.py submit --version ${{ steps.ver.outputs.version }} --build ${{ steps.ver.outputs.build }}

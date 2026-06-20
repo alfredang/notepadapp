@@ -101,12 +101,16 @@ struct DashboardView: View {
         .toolbar { toolbarContent }
         .overlay(alignment: .bottom) { syncToast }
         .animation(.spring(duration: 0.3), value: syncFeedback)
-        .task { viewModel.restoreFromCloudIfNeeded() }
+        .task {
+            sync.refreshAccountStatus()
+            viewModel.restoreFromCloudIfNeeded()
+        }
         // A remote import finished → surface the newly synced notebooks.
         .onChange(of: sync.lastImportDate) { _, _ in viewModel.reload() }
         // Returning to the app triggers CloudKit's foreground fetch; refresh too.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                sync.refreshAccountStatus()
                 viewModel.reload()
                 viewModel.restoreFromCloudIfNeeded()
             }
@@ -279,6 +283,15 @@ struct DashboardView: View {
                     } description: {
                         Text("Restoring your notebooks from iCloud.")
                     }
+                }
+            } else if sync.iCloudUnavailable {
+                ContentUnavailableView {
+                    Label("Sign in to iCloud", systemImage: "icloud.slash")
+                } description: {
+                    Text("Your notebooks sync through iCloud. Sign in to iCloud in Settings to restore and back them up. You can still create notebooks on this device.")
+                } actions: {
+                    Button("Create Notebook") { showingNewNotebook = true }
+                        .buttonStyle(.borderedProminent)
                 }
             } else {
                 ContentUnavailableView {
