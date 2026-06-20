@@ -34,42 +34,48 @@ struct SidebarView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            // Select / done toggle (drag handles + multi-select appear in select mode).
-            Button {
-                withAnimation {
-                    if selecting { editMode = .inactive; selectedIDs.removeAll() }
-                    else { editMode = .active }
-                }
-            } label: {
-                Image(systemName: selecting ? "checkmark.circle.fill" : "checkmark.circle")
-            }
-            .accessibilityLabel(selecting ? "Done selecting" : "Select pages")
-
-            Spacer()
-
-            if selecting {
-                Button(role: .destructive) {
-                    viewModel.deletePages(ids: selectedIDs)
-                    selectedIDs.removeAll()
+            // Page add/select/delete is iPad-only; iPhone is view-only.
+            if DeviceKind.isPad {
+                // Select / done toggle (drag handles + multi-select appear in select mode).
+                Button {
+                    withAnimation {
+                        if selecting { editMode = .inactive; selectedIDs.removeAll() }
+                        else { editMode = .active }
+                    }
                 } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: selecting ? "checkmark.circle.fill" : "checkmark.circle")
                 }
-                .disabled(selectedIDs.isEmpty)
-                .foregroundStyle(selectedIDs.isEmpty ? Color.secondary : Color.red)
-                .accessibilityLabel("Delete selected pages")
+                .accessibilityLabel(selecting ? "Done selecting" : "Select pages")
+
+                Spacer()
+
+                if selecting {
+                    Button(role: .destructive) {
+                        viewModel.deletePages(ids: selectedIDs)
+                        selectedIDs.removeAll()
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .disabled(selectedIDs.isEmpty)
+                    .foregroundStyle(selectedIDs.isEmpty ? Color.secondary : Color.red)
+                    .accessibilityLabel("Delete selected pages")
+                } else {
+                    Menu {
+                        Button { viewModel.addPageAtEnd() } label: { Label("Add at End", systemImage: "plus") }
+                        Button { viewModel.insertPage(before: viewModel.selectedPageIndex) } label: {
+                            Label("Insert Before", systemImage: "arrow.up.to.line")
+                        }
+                        Button { viewModel.insertPage(after: viewModel.selectedPageIndex) } label: {
+                            Label("Insert After", systemImage: "arrow.down.to.line")
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle")
+                    }
+                    .accessibilityLabel("Add page")
+                }
             } else {
-                Menu {
-                    Button { viewModel.addPageAtEnd() } label: { Label("Add at End", systemImage: "plus") }
-                    Button { viewModel.insertPage(before: viewModel.selectedPageIndex) } label: {
-                        Label("Insert Before", systemImage: "arrow.up.to.line")
-                    }
-                    Button { viewModel.insertPage(after: viewModel.selectedPageIndex) } label: {
-                        Label("Insert After", systemImage: "arrow.down.to.line")
-                    }
-                } label: {
-                    Image(systemName: "plus.circle")
-                }
-                .accessibilityLabel("Add page")
+                Text("Pages").font(.headline).foregroundStyle(.secondary)
+                Spacer()
             }
         }
         .font(.title3)
@@ -109,9 +115,12 @@ struct SidebarView: View {
             }
         }
         .contextMenu {
-            Button { viewModel.duplicate(page) } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
-            Button { viewModel.insertPage(after: index) } label: { Label("Insert After", systemImage: "arrow.down.to.line") }
-            Button(role: .destructive) { viewModel.delete(page) } label: { Label("Delete", systemImage: "trash") }
+            // Page editing is iPad-only; iPhone is view-only.
+            if DeviceKind.isPad {
+                Button { viewModel.duplicate(page) } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+                Button { viewModel.insertPage(after: index) } label: { Label("Insert After", systemImage: "arrow.down.to.line") }
+                Button(role: .destructive) { viewModel.delete(page) } label: { Label("Delete", systemImage: "trash") }
+            }
         }
     }
 }

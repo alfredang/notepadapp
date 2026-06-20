@@ -274,14 +274,18 @@ struct DashboardView: View {
             } label: {
                 Label("Import Notebook", systemImage: "square.and.arrow.down")
             }
+            .disabled(!DeviceKind.isPad)
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showingNewNotebook = true
-            } label: {
-                Label("New Notebook", systemImage: "plus")
+        // Creating notebooks is iPad-only; iPhone is view-only.
+        if DeviceKind.isPad {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingNewNotebook = true
+                } label: {
+                    Label("New Notebook", systemImage: "plus")
+                }
+                .keyboardShortcut("n", modifiers: .command)
             }
-            .keyboardShortcut("n", modifiers: .command)
         }
     }
 
@@ -300,21 +304,27 @@ struct DashboardView: View {
                 ContentUnavailableView {
                     Label("Sign in to iCloud", systemImage: "icloud.slash")
                 } description: {
-                    Text("Your notebooks sync through iCloud. Sign in to iCloud in Settings to restore and back them up. You can still create notebooks on this device.")
+                    Text("Your notebooks sync through iCloud. Sign in to iCloud in Settings to restore and back them up.")
                 } actions: {
-                    Button("Create Notebook") { showingNewNotebook = true }
-                        .buttonStyle(.borderedProminent)
+                    if DeviceKind.isPad {
+                        Button("Create Notebook") { showingNewNotebook = true }
+                            .buttonStyle(.borderedProminent)
+                    }
                 }
             } else {
                 ContentUnavailableView {
                     Label("No Notebooks", systemImage: "book.closed")
                 } description: {
-                    Text("Create your first notebook to start taking notes.")
+                    Text(DeviceKind.isPad
+                         ? "Create your first notebook to start taking notes."
+                         : "Create notebooks on your iPad — they'll appear here once iCloud syncs.")
                 } actions: {
                     HStack {
                         Button("Sync with iCloud") { runSync() }
                             .buttonStyle(.borderedProminent)
-                        Button("Create Notebook") { showingNewNotebook = true }
+                        if DeviceKind.isPad {
+                            Button("Create Notebook") { showingNewNotebook = true }
+                        }
                     }
                 }
             }

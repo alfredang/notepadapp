@@ -75,13 +75,17 @@ struct NotebookCard: View {
             if notebook.orderedChildren.count > 0 {
                 Button { onOpenFolder() } label: { Label("Open Sub-Notebooks", systemImage: "folder") }
             }
-            Button { beginRename() } label: { Label("Rename", systemImage: "pencil") }
-            Button { onEditTags() } label: { Label("Edit Tags", systemImage: "tag") }
-            Button { onAddSubNotebook() } label: { Label("Add Sub-Notebook", systemImage: "folder.badge.plus") }
-            Button { onDuplicate() } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
             Button { onShare() } label: { Label("Share Notebook", systemImage: "square.and.arrow.up") }
-            Divider()
-            Button(role: .destructive) { onDelete() } label: { Label("Delete", systemImage: "trash") }
+            // Editing/creating/deleting notebooks is iPad-only; iPhone is view-only
+            // so it can't alter the shared notebooks (the iPad is the source of truth).
+            if DeviceKind.isPad {
+                Button { beginRename() } label: { Label("Rename", systemImage: "pencil") }
+                Button { onEditTags() } label: { Label("Edit Tags", systemImage: "tag") }
+                Button { onAddSubNotebook() } label: { Label("Add Sub-Notebook", systemImage: "folder.badge.plus") }
+                Button { onDuplicate() } label: { Label("Duplicate", systemImage: "plus.square.on.square") }
+                Divider()
+                Button(role: .destructive) { onDelete() } label: { Label("Delete", systemImage: "trash") }
+            }
         }
     }
 

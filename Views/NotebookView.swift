@@ -192,13 +192,16 @@ struct NotebookView: View {
                 .accessibilityLabel("Import PDF")
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                showAudioNotes = true
-            } label: {
-                Image(systemName: "waveform")
+        // Audio notes record new content — iPad-only (iPhone is view-only).
+        if DeviceKind.isPad {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAudioNotes = true
+                } label: {
+                    Image(systemName: "waveform")
+                }
+                .accessibilityLabel("Audio notes")
             }
-            .accessibilityLabel("Audio notes")
         }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
