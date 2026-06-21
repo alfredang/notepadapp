@@ -15,9 +15,25 @@ Academy Pte Ltd**.
 ![Swift](https://img.shields.io/badge/Swift-6-orange)
 
 <p align="center">
-  <img src="docs/screenshots/editor.png" alt="Editor with flowchart, sticky note and tool palette" width="45%" />
+  <a href="https://apps.apple.com/us/app/tertiary-notepad/id6779909944">
+    <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="Download on the App Store" height="48" />
+  </a>
+</p>
+
+<p align="center">
+  📱 <a href="https://apps.apple.com/us/app/tertiary-notepad/id6779909944"><strong>Download on the App Store</strong></a>
+  &nbsp;·&nbsp;
+  💻 <a href="https://github.com/alfredang/notepadapp"><strong>Source on GitHub</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/appstore-1.png" alt="Write naturally with Apple Pencil — flowchart, sticky note and tool palette" width="30%" />
   &nbsp;&nbsp;
-  <img src="docs/screenshots/dashboard.png" alt="Notebook dashboard" width="45%" />
+  <img src="docs/screenshots/appstore-2.png" alt="Organize every notebook — dashboard grid" width="30%" />
+</p>
+
+<p align="center">
+  <sub>Screenshots from the <a href="https://apps.apple.com/us/app/tertiary-notepad/id6779909944">App Store listing</a>.</sub>
 </p>
 
 ## Features

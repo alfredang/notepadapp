@@ -30,3 +30,7 @@ signin.png
 
 # Local-only dev build artifact (Production CloudKit on dev signing)
 App/NotePadApp.DeviceTest.entitlements
+
+# Python
+__pycache__/
+*.pyc
