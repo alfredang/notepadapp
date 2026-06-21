@@ -10,6 +10,7 @@ struct NotebookCard: View {
     var onDelete: () -> Void
     var onAddSubNotebook: () -> Void
     var onShare: () -> Void
+    var onShareLink: () -> Void
     var onEditTags: () -> Void
     var onToggleFavorite: () -> Void
 
@@ -82,6 +83,7 @@ struct NotebookCard: View {
                 Button { onOpenFolder() } label: { Label("Open Sub-Notebooks", systemImage: "folder") }
             }
             Button { onShare() } label: { Label("Share Notebook", systemImage: "square.and.arrow.up") }
+            Button { onShareLink() } label: { Label("Share Link (Copy)", systemImage: "link") }
             // Editing/creating/deleting notebooks is iPad-only; iPhone is view-only
             // so it can't alter the shared notebooks (the iPad is the source of truth).
             if DeviceKind.isPad {

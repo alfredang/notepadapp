@@ -38,6 +38,12 @@ struct RootView: View {
         .onOpenURL { url in
             ExternalImport.handle(url: url, context: modelContext)
         }
+        // A shared notebook link was accepted → import the downloaded copy.
+        .onReceive(NotificationCenter.default.publisher(for: .notebookShareAccepted)) { note in
+            if let url = note.object as? URL {
+                ExternalImport.handle(url: url, context: modelContext)
+            }
+        }
     }
 
     /// Tab bar item. On iPad the bar floats at the top, so show icons only for a

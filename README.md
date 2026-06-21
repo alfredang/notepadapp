@@ -109,8 +109,13 @@ Academy Pte Ltd**.
   **Apple Notes**, or any **PDF** (via Files / iCloud Drive): each becomes a new
   notebook with one annotatable page per page. Files shared via **AirDrop** or
   "Open in NotePad" import automatically.
+- **Insert image** — paste an image from the clipboard onto a page and annotate
+  on top of it.
 - **PDF annotation** — import a PDF as annotatable pages and mark it up.
-- **Export** — page to PNG / JPG / PDF; whole notebook to a combined PDF.
+- **Export** — page to PNG / JPG / PDF; whole notebook to a combined PDF, shared
+  through the system share sheet (incl. **AirDrop**).
+- **Share a copy via link** — generate an **iCloud share link**; anyone who opens
+  it gets their own duplicate notebook, leaving your original private and unedited.
 - **Notebook sharing** — export a full notebook (pages, PDF backgrounds, voice
   memos) to a portable `.notebook` file and import it elsewhere.
 - **Audio notes** — record, play back, and delete voice memos per notebook.
@@ -220,8 +225,8 @@ zoom · multi-select / drag-reorder pages · **universal app** (iPad editor;
 iPhone & Mac view-only) · iPad HIG polish (keyboard shortcuts, pointer hover,
 VoiceOver). On the App Store.
 
-**Next:** real-time collaboration (live CKShare co-editing — current sharing is
-file-based) · handwriting-to-text conversion · editing on iPhone/Mac · web
+**Next:** real-time collaboration (live CKShare co-editing — current link sharing
+hands over a duplicate copy) · handwriting-to-text conversion · editing on iPhone/Mac · web
 companion.
 
 ---

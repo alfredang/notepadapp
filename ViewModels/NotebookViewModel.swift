@@ -170,6 +170,18 @@ final class NotebookViewModel {
         }
     }
 
+    /// Sets a pasted image as the current page's background so the user can
+    /// annotate on top of it. Returns false if there's no current page.
+    @discardableResult
+    func setBackgroundOnCurrentPage(_ data: Data) -> Bool {
+        guard let page = selectedPage else { return false }
+        page.backgroundData = data
+        page.touch()
+        try? repository.save()
+        bump()
+        return true
+    }
+
     /// Imports a PDF, appending one annotatable page per PDF page.
     func importPDF(from url: URL) {
         let backgrounds = PDFImportService.renderBackgrounds(from: url)

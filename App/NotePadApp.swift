@@ -10,6 +10,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         application.registerForRemoteNotifications()
         return true
     }
+
+    /// Route scenes through `SceneDelegate` so the app can receive accepted
+    /// iCloud share links (`userDidAcceptCloudKitShareWith`). SwiftUI still owns
+    /// the window — the delegate only adds the CloudKit-share hook.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let config = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        config.delegateClass = SceneDelegate.self
+        return config
+    }
 }
 
 /// App entry point. Installs the SwiftData container and presents the root navigation.

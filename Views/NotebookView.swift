@@ -1,11 +1,13 @@
 import SwiftUI
 import SwiftData
+import UIKit
 import UniformTypeIdentifiers
 
 /// An open notebook: thumbnail sidebar + page editor, with page/export actions.
 struct NotebookView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.dismiss) private var dismiss
     let notebook: Notebook
 
     /// iPhone (and other compact-width contexts) get a sheet sidebar + scrollable
@@ -23,6 +25,10 @@ struct NotebookView: View {
     @State private var showAudioNotes = false
     @State private var showPDFImporter = false
     @State private var exportItem: ExportRequest?
+    /// Shown when "Insert Image" is tapped but the clipboard has no image.
+    @State private var showNoImageAlert = false
+    /// Presents the iCloud copy-link share sheet.
+    @State private var showShareLink = false
 
     init(notebook: Notebook) {
         self.notebook = notebook
@@ -36,24 +42,38 @@ struct NotebookView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // iPad / Mac: inline split sidebar. iPhone: sidebar is a sheet (below).
-            if showSidebar && !isCompact {
-                SidebarView(viewModel: notebookVM)
-                    .transition(.move(edge: .leading))
-                Divider()
+        VStack(spacing: 0) {
+            // A custom header replaces the system navigation bar so opening a
+            // notebook has NO chrome to reconfigure mid-transition — the whole
+            // editor (header included) slides in as one stable layer, with no
+            // tab-bar/nav-bar flash or top-section "jump".
+            editorHeader
+            Divider()
+            HStack(spacing: 0) {
+                // iPad / Mac: inline split sidebar. iPhone: sidebar is a sheet (below).
+                if showSidebar && !isCompact {
+                    SidebarView(viewModel: notebookVM)
+                        .transition(.move(edge: .leading))
+                    Divider()
+                }
+                EditorView(
+                    pages: notebookVM.pages,
+                    editor: editorVM,
+                    autoSave: autoSave,
+                    controller: controller,
+                    structureToken: notebookVM.refreshToken
+                )
             }
-            EditorView(
-                pages: notebookVM.pages,
-                editor: editorVM,
-                autoSave: autoSave,
-                controller: controller,
-                structureToken: notebookVM.refreshToken
-            )
         }
-        .navigationTitle(notebook.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { toolbarContent }
+        // Hide both system bars: the editor is fully self-chromed now.
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .navigationBarBackButtonHidden(true)
+        .alert("No image to paste", isPresented: $showNoImageAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Copy an image first (in Photos, Safari, Files…), then tap Insert Image to paste it onto this page.")
+        }
         .sheet(isPresented: Binding(
             get: { showSidebar && isCompact },
             set: { if !$0 { showSidebar = false } }
@@ -138,6 +158,9 @@ struct NotebookView: View {
         .sheet(item: $exportItem) { request in
             ExportSheet(request: request)
         }
+        .sheet(isPresented: $showShareLink) {
+            ShareLinkSheet(notebook: notebook)
+        }
         .sheet(isPresented: $showAudioNotes) {
             AudioNotesView(notebook: notebook)
         }
@@ -150,75 +173,97 @@ struct NotebookView: View {
     }
 
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button {
-                withAnimation { showSidebar.toggle() }
-            } label: {
-                Image(systemName: "sidebar.left")
+    /// Custom editor header — replaces the system navigation bar so there's no
+    /// system chrome to reconfigure during the push (the source of the "jump").
+    private var editorHeader: some View {
+        ZStack {
+            Text(notebook.title)
+                .font(.headline)
+                .lineLimit(1)
+                .padding(.horizontal, 132)   // stay clear of the edge controls
+
+            HStack(spacing: 18) {
+                Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                    .accessibilityLabel("Back to notebooks")
+                Button { withAnimation { showSidebar.toggle() } } label: {
+                    Image(systemName: "sidebar.left")
+                }
+                .accessibilityLabel("Toggle pages sidebar")
+
+                Spacer()
+
+                // Editing controls only on the iPad (iPhone / Mac are view-only).
+                if DeviceKind.isPad {
+                    Toggle(isOn: $allowsFingerDrawing) { Image(systemName: "hand.draw") }
+                        .toggleStyle(.button)
+                        .accessibilityLabel("Finger drawing")
+                    Button { insertPastedImage() } label: { Image(systemName: "photo.badge.plus") }
+                        .accessibilityLabel("Insert Image")
+                }
+                exportMenu
+                if DeviceKind.isPad { moreMenu }
             }
-            .accessibilityLabel("Toggle pages sidebar")
         }
-        // Editing controls only on the iPad (iPhone / Mac are view-only).
-        if DeviceKind.isPad {
-            ToolbarItem(placement: .topBarTrailing) {
-                Toggle(isOn: $allowsFingerDrawing) {
-                    Image(systemName: "hand.draw")
+        .font(.system(size: 18))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Rectangle().fill(.bar).ignoresSafeArea(edges: .top))
+    }
+
+    /// Export — the share sheet includes AirDrop; also offers the iCloud copy-link.
+    private var exportMenu: some View {
+        Menu {
+            if let page = notebookVM.selectedPage {
+                Section("Export Page") {
+                    Button("PNG") { exportItem = .page(page, .png) }
+                    Button("JPG") { exportItem = .page(page, .jpg) }
+                    Button("PDF") { exportItem = .page(page, .pdf) }
                 }
-                .toggleStyle(.button)
-                .accessibilityLabel("Finger drawing")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button {
-                        notebookVM.extendCurrentPage()
-                        controller.scrollToPage(notebookVM.selectedPageIndex)
-                    } label: { Label("Extend Page", systemImage: "arrow.down.to.line") }
-                    Button {
-                        notebookVM.resetCurrentPageHeight()
-                    } label: { Label("Reset Page Height", systemImage: "arrow.up.to.line") }
-                } label: {
-                    Image(systemName: "rectangle.expand.vertical")
-                }
-                .accessibilityLabel("Page size")
+            Section("Export Notebook") {
+                Button("PDF") { exportItem = .notebook(notebook) }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            Section("Share a Copy") {
+                Button { showShareLink = true } label: { Label("Create Share Link…", systemImage: "link") }
+            }
+        } label: {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .accessibilityLabel("Export")
+    }
+
+    /// Less-used page actions, folded into one labelled menu.
+    private var moreMenu: some View {
+        Menu {
+            Section("Page size") {
                 Button {
-                    showPDFImporter = true
-                } label: {
-                    Image(systemName: "doc.badge.plus")
-                }
-                .accessibilityLabel("Import PDF")
-            }
-        }
-        // Audio notes record new content — iPad-only (iPhone is view-only).
-        if DeviceKind.isPad {
-            ToolbarItem(placement: .topBarTrailing) {
+                    notebookVM.extendCurrentPage()
+                    controller.scrollToPage(notebookVM.selectedPageIndex)
+                } label: { Label("Extend Page", systemImage: "arrow.down.to.line") }
                 Button {
-                    showAudioNotes = true
-                } label: {
-                    Image(systemName: "waveform")
-                }
-                .accessibilityLabel("Audio notes")
+                    notebookVM.resetCurrentPageHeight()
+                } label: { Label("Reset Page Height", systemImage: "arrow.up.to.line") }
             }
+            Section {
+                Button { showPDFImporter = true } label: { Label("Import PDF", systemImage: "doc.badge.plus") }
+                Button { showAudioNotes = true } label: { Label("Audio Notes", systemImage: "waveform") }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                if let page = notebookVM.selectedPage {
-                    Section("Export Page") {
-                        Button("PNG") { exportItem = .page(page, .png) }
-                        Button("JPG") { exportItem = .page(page, .jpg) }
-                        Button("PDF") { exportItem = .page(page, .pdf) }
-                    }
-                }
-                Section("Export Notebook") {
-                    Button("PDF") { exportItem = .notebook(notebook) }
-                }
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-            }
-            .accessibilityLabel("Export")
+        .accessibilityLabel("More")
+    }
+
+    /// Pastes the clipboard image onto the current page as its background to
+    /// annotate over. Shows a hint if the clipboard holds no image.
+    private func insertPastedImage() {
+        guard let image = UIPasteboard.general.image,
+              let data = image.pngData() ?? image.jpegData(compressionQuality: 0.9) else {
+            showNoImageAlert = true
+            return
+        }
+        if notebookVM.setBackgroundOnCurrentPage(data) {
+            controller.scrollToPage(notebookVM.selectedPageIndex)
         }
     }
 }

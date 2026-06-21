@@ -31,6 +31,8 @@ struct DashboardView: View {
     @State private var showingPDFImporter = false
     /// Notebook whose tags are being edited.
     @State private var taggingNotebook: Notebook?
+    /// Notebook being shared as an iCloud copy-link.
+    @State private var shareLinkNotebook: Notebook?
     /// Transient banner shown when the user taps the sync button.
     @State private var syncFeedback: SyncFeedback?
 
@@ -63,6 +65,10 @@ struct DashboardView: View {
         NavigationStack(path: $path) {
             content
                 .navigationTitle(title)
+                // Hide the app tab bar the moment we navigate into a notebook/folder
+                // (in sync with the push) so it doesn't flash then vanish — the
+                // editor also pins it hidden, keeping it gone for the whole stack.
+                .toolbar(path.isEmpty ? .automatic : .hidden, for: .tabBar)
                 .navigationDestination(for: DashboardRoute.self) { route in
                     switch route {
                     case .editor(let notebook):
@@ -95,6 +101,7 @@ struct DashboardView: View {
                                 }
                             },
                             onShare: { shareItem = .notebookArchive(notebook) },
+                            onShareLink: { shareLinkNotebook = notebook },
                             onEditTags: { taggingNotebook = notebook },
                             onToggleFavorite: { viewModel.toggleFavorite(notebook) }
                         )
@@ -160,6 +167,9 @@ struct DashboardView: View {
             TagEditorView(title: nb.title, currentTags: nb.tags, suggestions: viewModel.allTags) {
                 viewModel.setTags($0, on: nb)
             }
+        }
+        .sheet(item: $shareLinkNotebook) { nb in
+            ShareLinkSheet(notebook: nb)
         }
         .fileImporter(
             isPresented: $showingImporter,
