@@ -9,6 +9,10 @@ protocol NotebookRepositoryProtocol {
     func allFavorites(sortedBy sort: NotebookSort) throws(StorageError) -> [Notebook]
     @discardableResult
     func create(title: String, parent: Notebook?) throws(StorageError) -> Notebook
+    /// Creates a new notebook whose pages are the given background rasters — e.g.
+    /// PDF pages migrated from GoodNotes / Notability / Apple Notes.
+    @discardableResult
+    func createFromBackgrounds(title: String, backgrounds: [Data], parent: Notebook?) throws(StorageError) -> Notebook
     func setFavorite(_ notebook: Notebook, _ isFavorite: Bool) throws(StorageError)
     func rename(_ notebook: Notebook, to title: String) throws(StorageError)
     func delete(_ notebook: Notebook) throws(StorageError)
@@ -101,6 +105,39 @@ final class NotebookRepository: NotebookRepositoryProtocol {
                         notebook: notebook)
         context.insert(page)
         notebook.pages = [page]
+        parent?.touch()
+        try save()
+        return notebook
+    }
+
+    @discardableResult
+    func createFromBackgrounds(title: String, backgrounds: [Data], parent: Notebook?) throws(StorageError) -> Notebook {
+        let siblingsCount = parent?.children?.count ?? (try? allTopLevel(sortedBy: .createdDate).count) ?? 0
+        let notebook = Notebook(title: title, sortIndex: siblingsCount, parent: parent)
+        // Imported pages carry their own (PDF) background image, so keep the
+        // underlying surface plain white/blank — the page shows as exported.
+        notebook.paperSurface = .whiteboard
+        notebook.paperPattern = .blank
+        notebook.paperLayout = AppDefaults.paperLayout
+        context.insert(notebook)
+
+        var pages: [Page] = []
+        for (index, background) in backgrounds.enumerated() {
+            let page = Page(pageIndex: index, backgroundData: background, notebook: notebook)
+            context.insert(page)
+            pages.append(page)
+        }
+        // Never leave a notebook with zero pages (the editor expects at least one).
+        if pages.isEmpty {
+            let page = Page(pageIndex: 0,
+                            surface: notebook.paperSurface,
+                            pattern: notebook.paperPattern,
+                            layout: notebook.paperLayout,
+                            notebook: notebook)
+            context.insert(page)
+            pages.append(page)
+        }
+        notebook.pages = pages
         parent?.touch()
         try save()
         return notebook

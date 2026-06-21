@@ -105,6 +105,10 @@ Academy Pte Ltd**.
 - **Auto save** — every change is debounced and persisted; no save button.
 
 ### Import / export / media
+- **Migrate from other apps** — import notes from **GoodNotes**, **Notability**,
+  **Apple Notes**, or any **PDF** (via Files / iCloud Drive): each becomes a new
+  notebook with one annotatable page per page. Files shared via **AirDrop** or
+  "Open in NotePad" import automatically.
 - **PDF annotation** — import a PDF as annotatable pages and mark it up.
 - **Export** — page to PNG / JPG / PDF; whole notebook to a combined PDF.
 - **Notebook sharing** — export a full notebook (pages, PDF backgrounds, voice

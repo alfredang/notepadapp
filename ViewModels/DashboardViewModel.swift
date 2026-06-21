@@ -221,6 +221,27 @@ final class DashboardViewModel {
         }
     }
 
+    /// Migrates a PDF (exported / shared from GoodNotes, Notability, Apple Notes,
+    /// or any app) into a brand-new notebook — one annotatable page per PDF page.
+    func importPDF(from url: URL) {
+        let backgrounds = PDFImportService.renderBackgrounds(from: url)
+        guard !backgrounds.isEmpty else {
+            errorMessage = "Couldn't read that PDF. Export it again from the other app and retry."
+            return
+        }
+        let name = url.deletingPathExtension().lastPathComponent
+        do {
+            try repository.createFromBackgrounds(
+                title: name.isEmpty ? "Imported Notebook" : name,
+                backgrounds: backgrounds,
+                parent: parent
+            )
+            reload()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Imports a shared `.notebook` archive as a new top-level notebook.
     func importArchive(from url: URL, into context: ModelContext) {
         do {

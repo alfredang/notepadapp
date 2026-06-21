@@ -25,9 +25,18 @@ struct RootView: View {
             AboutView()
                 .tabItem { tabLabel("About", "info.circle") }
         }
-        .task { syncSettingsToLocalDefaults() }
+        .task {
+            syncSettingsToLocalDefaults()
+            // Pay PencilKit's one-time engine start-up cost now so the first
+            // stroke on a freshly opened notebook isn't laggy (iPad editing only).
+            if DeviceKind.isPad { PencilKitWarmUp.warmUp() }
+        }
         .onChange(of: settingsRecords.map(\.updatedAt)) { _, _ in
             syncSettingsToLocalDefaults()
+        }
+        // Files handed in via AirDrop, "Open in NotePad", or the Files app.
+        .onOpenURL { url in
+            ExternalImport.handle(url: url, context: modelContext)
         }
     }
 

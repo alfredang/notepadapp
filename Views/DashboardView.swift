@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Navigation route values for the dashboard stack.
 enum DashboardRoute: Hashable {
@@ -24,7 +25,10 @@ struct DashboardView: View {
     @State private var pendingDelete: Notebook?
     /// Notebook archive to share via the export sheet.
     @State private var shareItem: ExportRequest?
+    /// `.notebook` archive importer.
     @State private var showingImporter = false
+    /// PDF importer (PDF / GoodNotes / Notability / Apple Notes migration).
+    @State private var showingPDFImporter = false
     /// Notebook whose tags are being edited.
     @State private var taggingNotebook: Notebook?
     /// Transient banner shown when the user taps the sync button.
@@ -165,6 +169,18 @@ struct DashboardView: View {
                 viewModel.importArchive(from: url, into: modelContext)
             }
         }
+        .fileImporter(
+            isPresented: $showingPDFImporter,
+            allowedContentTypes: [.pdf]
+        ) { result in
+            if case .success(let url) = result {
+                viewModel.importPDF(from: url)
+            }
+        }
+        // A file imported elsewhere (AirDrop / Open in NotePad) → refresh the list.
+        .onReceive(NotificationCenter.default.publisher(for: .externalNotebookImported)) { _ in
+            viewModel.reload()
+        }
     }
 
     /// Runs a manual iCloud sync and shows a transient status banner: a spinner
@@ -224,56 +240,69 @@ struct DashboardView: View {
             }
             .keyboardShortcut(",", modifiers: .command)
         }
-        if !viewModel.allTags.isEmpty {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
+        // Secondary actions (sort, tag filter, manual sync) live in a single
+        // "More" menu so the primary Import / New buttons always stay visible —
+        // the iPad's centered tab bar leaves little room on the trailing edge.
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Picker("Sort", selection: $viewModel.sort) {
+                    ForEach(NotebookSort.allCases) { Text($0.rawValue).tag($0) }
+                }
+                if !viewModel.allTags.isEmpty {
                     Picker("Filter by tag", selection: $viewModel.selectedTag) {
                         Text("All Notebooks").tag(String?.none)
                         ForEach(viewModel.allTags, id: \.self) { tag in
                             Label(tag, systemImage: "tag").tag(String?.some(tag))
                         }
                     }
-                } label: {
-                    Label("Filter by tag",
-                          systemImage: viewModel.selectedTag == nil
-                              ? "line.3.horizontal.decrease.circle"
-                              : "line.3.horizontal.decrease.circle.fill")
                 }
-            }
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            Button {
-                runSync()
+                Divider()
+                Button {
+                    runSync()
+                } label: {
+                    Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(syncFeedback == .syncing)
             } label: {
                 if syncFeedback == .syncing || sync.isSyncing {
                     ProgressView()
                 } else {
-                    Label("Sync with iCloud", systemImage: "arrow.triangle.2.circlepath")
+                    Label("More", systemImage: "ellipsis.circle")
                 }
             }
-            .disabled(syncFeedback == .syncing)
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Picker("Sort", selection: $viewModel.sort) {
-                    ForEach(NotebookSort.allCases) { Text($0.rawValue).tag($0) }
-                }
-            } label: {
-                Label("Sort", systemImage: "arrow.up.arrow.down")
-            }
-        }
-        if !viewModel.favoritesOnly {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showingImporter = true
-                } label: {
-                    Label("Import Notebook", systemImage: "square.and.arrow.down")
-                }
-                .disabled(!DeviceKind.isPad)
-            }
-        }
-        // Creating notebooks is iPad-only; iPhone is view-only.
+        // Import / migrate — iPad-only (iPhone & Mac are view-only).
         if DeviceKind.isPad && !viewModel.favoritesOnly {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Section("Migrate from another app") {
+                        Button { showingPDFImporter = true } label: {
+                            Label("GoodNotes (PDF)…", systemImage: "doc.richtext")
+                        }
+                        Button { showingPDFImporter = true } label: {
+                            Label("Notability (PDF)…", systemImage: "doc.richtext")
+                        }
+                        Button { showingPDFImporter = true } label: {
+                            Label("Apple Notes (PDF)…", systemImage: "doc.richtext")
+                        }
+                    }
+                    Section {
+                        Button { showingPDFImporter = true } label: {
+                            Label("Import PDF…", systemImage: "doc")
+                        }
+                        Button { showingImporter = true } label: {
+                            Label("Import Notebook (.notebook)…", systemImage: "books.vertical")
+                        }
+                    }
+                    Section {
+                        Label("Tip: AirDrop a PDF or .notebook to this iPad and choose NotePad to import.",
+                              systemImage: "dot.radiowaves.left.and.right")
+                    }
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+            }
+            // Creating notebooks is iPad-only; iPhone is view-only.
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     showingNewNotebook = true
