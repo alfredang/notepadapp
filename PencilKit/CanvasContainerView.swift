@@ -64,6 +64,7 @@ struct CanvasContainerView: UIViewRepresentable {
         doubleTapZoom.numberOfTapsRequired = 2
         doubleTapZoom.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         scrollView.addGestureRecognizer(doubleTapZoom)
+        context.coordinator.zoomDoubleTap = doubleTapZoom
 
         let stack = UIStackView()
         stack.axis = .vertical
@@ -108,6 +109,8 @@ struct CanvasContainerView: UIViewRepresentable {
 
         weak var scrollView: UIScrollView?
         weak var stack: UIStackView?
+        /// Finger double-tap-to-zoom recognizer, disabled while the page is locked.
+        weak var zoomDoubleTap: UITapGestureRecognizer?
         private var pageViews: [PageContainerView] = []
         private var pageForCanvas: [ObjectIdentifier: Page] = [:]
         private var didInitialFit = false
@@ -225,7 +228,7 @@ struct CanvasContainerView: UIViewRepresentable {
                 scrollToTop()
                 didInitialFit = true
                 autoFitScale = fit
-            } else if abs(scrollView.zoomScale - autoFitScale) < 0.02 {
+            } else if !editor.isLocked, abs(scrollView.zoomScale - autoFitScale) < 0.02 {
                 applyFit()
                 autoFitScale = scrollView.zoomScale
             }
@@ -400,11 +403,16 @@ struct CanvasContainerView: UIViewRepresentable {
 
         /// Applies the current tool to every page's canvas + overlay.
         func applyTool() {
+            // When the page is locked, zoom is pinned: a resting palm (or a stray
+            // pinch) can't change the page size. Scrolling and drawing are untouched.
+            let zoomEnabled = !editor.isLocked
+            zoomDoubleTap?.isEnabled = zoomEnabled
+
             // View-only devices (iPhone / Mac): allow scroll + zoom, block all
             // drawing and selection so the page can't be altered.
             guard editor.isEditable else {
                 scrollView?.isScrollEnabled = true
-                scrollView?.pinchGestureRecognizer?.isEnabled = true
+                scrollView?.pinchGestureRecognizer?.isEnabled = zoomEnabled
                 scrollView?.panGestureRecognizer.minimumNumberOfTouches = 1
                 for pv in pageViews {
                     pv.canvas.drawingGestureRecognizer.isEnabled = false
@@ -419,10 +427,10 @@ struct CanvasContainerView: UIViewRepresentable {
                 switch tool { case .shape, .flowchart: return true; default: return false }
             }()
 
-            // Two fingers ALWAYS pinch-zoom. A single finger scrolls in every tool
-            // (including selection — the Pencil draws the lasso loop, the finger
-            // pans). The Apple Pencil draws / selects via the overlay or canvas.
-            scrollView?.pinchGestureRecognizer?.isEnabled = true
+            // Two fingers ALWAYS pinch-zoom (unless locked). A single finger scrolls
+            // in every tool (including selection — the Pencil draws the lasso loop,
+            // the finger pans). The Apple Pencil draws / selects via overlay or canvas.
+            scrollView?.pinchGestureRecognizer?.isEnabled = zoomEnabled
             scrollView?.isScrollEnabled = true
             // With finger drawing on, a single finger draws so panning needs two
             // fingers; otherwise a single finger scrolls.
@@ -599,21 +607,44 @@ struct CanvasContainerView: UIViewRepresentable {
             guard let page = pageForCanvas[ObjectIdentifier(canvasView)] else { return }
 
             // If the user held still at the end of this stroke, snap it to a clean
-            // vector shape (rectangle / circle / triangle / diamond / line / arrow).
-            // When it isn't a recognizable shape, fall back to straightening the ink.
+            // shape / straight line — but DEFER it to the next runloop tick. By then
+            // PencilKit has registered (and closed) the raw stroke's own undo step,
+            // so our snap's undo step lands *above* it: one Undo reverts the snap
+            // (back to the raw ink), a second removes the stroke. Doing it inline
+            // here registers our undo *below* PencilKit's, so the first Undo hits a
+            // now-stale stroke entry and silently does nothing (the reported bug).
             if let canvas = canvasView as? StrokeCanvasView, canvas.straightenArmed {
                 canvas.straightenArmed = false
-                if !convertLastStrokeToShape(on: canvas, page: page),
-                   let straightened = StrokeStraightener.straightenLast(in: canvasView.drawing) {
-                    canvas.loadingDrawing = true // ignore the echo from this programmatic set
-                    canvasView.drawing = straightened
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                DispatchQueue.main.async { [weak self] in
+                    self?.applySnap(on: canvas, page: page)
                 }
+                return
             }
 
             page.drawingData = canvasView.drawing.dataRepresentation()
             autoSave.scheduleSave(touching: page)   // touches updatedAt synchronously
             pageViews.first { $0.canvas === canvasView }?.updateFooter()
+            scheduleThumbnailRefresh()
+        }
+
+        /// Applies the armed snap to the last stroke: convert it to a vector shape
+        /// when recognizable, otherwise straighten the ink. Runs one runloop tick
+        /// after the stroke commits so undo ordering is correct (see the caller).
+        private func applySnap(on canvas: StrokeCanvasView, page: Page) {
+            guard let pv = pageViews.first(where: { $0.canvas === canvas }) else { return }
+            if !convertLastStrokeToShape(on: canvas, page: page),
+               let straightened = StrokeStraightener.straightenLast(in: canvas.drawing) {
+                let beforeStraighten = canvas.drawing.dataRepresentation()
+                canvas.loadingDrawing = true // ignore the echo from this programmatic set
+                canvas.drawing = straightened
+                // Register our own undo: PencilKit doesn't track programmatic
+                // `drawing =` changes, so without this the straighten can't be undone.
+                pv.overlay.registerInkUndo(before: beforeStraighten)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+            page.drawingData = canvas.drawing.dataRepresentation()
+            autoSave.scheduleSave(touching: page)
+            pv.updateFooter()
             scheduleThumbnailRefresh()
         }
 

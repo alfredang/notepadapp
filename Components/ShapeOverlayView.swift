@@ -309,6 +309,18 @@ final class ShapeOverlayView: UIView {
         setNeedsDisplay()
     }
 
+    /// Registers an ink-only undo (e.g. after a straighten snap that replaced the
+    /// drawing programmatically — which PencilKit does not track) on the shared
+    /// manager, restoring the handwriting to `before` with a mirror redo.
+    func registerInkUndo(before: Data) {
+        guard let um = shapeUndoManager else { return }
+        um.registerUndo(withTarget: self) { target in
+            let redo = target.snapshotInk() ?? Data()
+            target.restoreInk(before)
+            target.registerInkUndo(before: redo)
+        }
+    }
+
     // MARK: - Undo support
 
     /// Records the change from `before` to the current `items` as one undo step

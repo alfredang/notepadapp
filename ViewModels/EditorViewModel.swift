@@ -32,6 +32,11 @@ final class EditorViewModel {
     /// Hides the floating tool palette.
     var isPaletteHidden: Bool = false
 
+    /// When on, the page is pinned: pinch-to-zoom and double-tap-zoom are
+    /// disabled (so a resting palm can't shift the page size), and the app's
+    /// orientation is locked. Scrolling and drawing still work normally.
+    var isLocked: Bool = false
+
     /// The tool to restore when a Pencil double-tap tool toggle is undone.
     private var toolBeforeToggle: EditorTool?
 
@@ -80,7 +85,7 @@ final class EditorViewModel {
     /// canvas host reads this so SwiftUI re-renders (and pushes the new tool to
     /// the `PKCanvasView`) the moment the user picks a tool, color, or width.
     var toolStateToken: String {
-        "\(tool)|\(penColor)|\(penWidth)|\(highlighterColor)|\(highlighterWidth)|\(eraserWidth)|\(allowsFingerDrawing)"
+        "\(tool)|\(penColor)|\(penWidth)|\(highlighterColor)|\(highlighterWidth)|\(eraserWidth)|\(allowsFingerDrawing)|\(isLocked)"
     }
 
     /// Style for a newly created overlay item using the current settings.

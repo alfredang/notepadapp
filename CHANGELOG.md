@@ -7,6 +7,13 @@ Store "What's New" text. Use `## [x.y]` headers and `- ` bullet lines.
 
 ## [Unreleased]
 
+## [1.6]
+
+- Lock the page: pin the zoom and screen orientation so a resting palm can't accidentally resize or rotate your page while you write.
+- Shape and line snapping now waits for a deliberate hold at the end of your stroke, so it won't trigger by accident.
+- Fixed undo for snapped shapes and straightened lines.
+- Even smoother first stroke when you open a brand-new notebook.
+
 ## [1.5]
 
 - Import and migrate notes from GoodNotes, Notability, Apple Notes, or any PDF — each becomes a new notebook you can annotate.

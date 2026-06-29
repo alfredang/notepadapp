@@ -39,7 +39,7 @@ targets:
         DEVELOPMENT_ASSET_PATHS: ""
         SUPPORTS_MACCATALYST: YES
         DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: NO
-        MARKETING_VERSION: "1.5"
+        MARKETING_VERSION: "1.6"
         UISupportedInterfaceOrientations: ""
       configs:
         # Debug uses development APNs (CloudKit Development); Release/archive uses

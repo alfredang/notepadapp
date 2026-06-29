@@ -5,7 +5,10 @@ import UIKit
 /// end point". A plain `UILongPressGestureRecognizer` can't do this because it
 /// fails as soon as the touch moves past its slop while drawing.
 final class HoldStillGestureRecognizer: UIGestureRecognizer {
-    var holdDuration: TimeInterval = 0.4
+    /// How long the Pencil must rest (nearly) still at the end of a stroke before
+    /// a snap (straighten / shape) is armed. Deliberately long so an ordinary
+    /// mid-stroke pause doesn't accidentally trigger a snap.
+    var holdDuration: TimeInterval = 0.7
     var movementSlop: CGFloat = 8
 
     private var anchor: CGPoint = .zero

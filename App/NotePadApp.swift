@@ -11,6 +11,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         return true
     }
 
+    /// Honour the editor's orientation lock (see `AppOrientationLock`). When the
+    /// user pins the canvas, this narrows to the locked orientation; otherwise
+    /// the app rotates freely as the Info.plist allows.
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        AppOrientationLock.mask
+    }
+
     /// Route scenes through `SceneDelegate` so the app can receive accepted
     /// iCloud share links (`userDidAcceptCloudKitShareWith`). SwiftUI still owns
     /// the window — the delegate only adds the CloudKit-share hook.

@@ -22,6 +22,9 @@ struct NotebookView: View {
     /// Persisted finger-drawing preference (shared with Settings). Off by
     /// default so a finger scrolls and never creates strokes/shapes.
     @AppStorage("allowsFingerDrawing") private var allowsFingerDrawing = false
+    /// Persisted page lock: pins zoom (no pinch / double-tap-zoom) and the app's
+    /// orientation, so a resting palm can't shift the page size or rotate it.
+    @AppStorage("editorLocked") private var isLocked = false
     @State private var showAudioNotes = false
     @State private var showPDFImporter = false
     @State private var exportItem: ExportRequest?
@@ -118,6 +121,9 @@ struct NotebookView: View {
             // or template edits, so notes can't be messed up while reviewing them.
             editorVM.isEditable = DeviceKind.isPad
             editorVM.allowsFingerDrawing = DeviceKind.isPad ? allowsFingerDrawing : false
+            // Restore the persisted page lock (iPad editing only).
+            editorVM.isLocked = DeviceKind.isPad ? isLocked : false
+            if editorVM.isLocked { AppOrientationLock.lock() }
             // Seed pen / eraser sizes from the user's defaults.
             editorVM.penWidth = AppDefaults.penWidth
             editorVM.eraserWidth = AppDefaults.eraserWidth
@@ -154,7 +160,16 @@ struct NotebookView: View {
             editorVM.allowsFingerDrawing = newValue
             controller.applyTool()
         }
-        .onDisappear { autoSave.saveNow() }
+        .onChange(of: isLocked) { _, newValue in
+            guard DeviceKind.isPad else { return }
+            editorVM.isLocked = newValue
+            controller.applyTool()
+            if newValue { AppOrientationLock.lock() } else { AppOrientationLock.unlock() }
+        }
+        .onDisappear {
+            autoSave.saveNow()
+            AppOrientationLock.unlock()   // leaving the editor frees rotation again
+        }
         .sheet(item: $exportItem) { request in
             ExportSheet(request: request)
         }
@@ -194,6 +209,11 @@ struct NotebookView: View {
 
                 // Editing controls only on the iPad (iPhone / Mac are view-only).
                 if DeviceKind.isPad {
+                    Toggle(isOn: $isLocked) {
+                        Image(systemName: isLocked ? "lock.rotation" : "lock.open.rotation")
+                    }
+                    .toggleStyle(.button)
+                    .accessibilityLabel("Lock orientation and zoom")
                     Toggle(isOn: $allowsFingerDrawing) { Image(systemName: "hand.draw") }
                         .toggleStyle(.button)
                         .accessibilityLabel("Finger drawing")
